@@ -1,0 +1,114 @@
+import os
+from typing import Any
+from langchain_openai import ChatOpenAI
+from deepagents import create_deep_agent
+from langgraph.checkpoint.memory import MemorySaver
+
+from src.sandbox.client import SandboxClient
+from src.sandbox.backend import LangSmithBackend
+from src.agent.state import SandboxAgentState
+
+TEMPLATE_NAME = "python-sandbox"
+
+
+def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 1：意图分析】
+    作用：充当门卫，拦截并分析用户的最后一句话，决定后续走哪条路线。
+    返回：更新账本上的 needs_sandbox 字段。
+    """
+    # 提取用户最新的一条消息
+    last_message = state["messages"][-1].content
+    print(f"\n[意图分析] 收到用户提问: '{last_message}'")
+
+    # 简单的关键词匹配逻辑（如果未来换了强大的大模型，可以改成让大模型来判断）
+    keywords = ["跑", "执行", "代码", "python", "sh", "cmd", "打印", "run", "exec"]
+    if any(kw in last_message.lower() for kw in keywords):
+        print("[意图分析] 🔍 决定【启动】沙箱。")
+        return {"needs_sandbox": True}
+
+    print("[意图分析] 📝 纯聊天意图，决定【跳过】沙箱。")
+    return {"needs_sandbox": False}
+
+
+def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 2：拉起沙箱】
+    作用：向 WSL 发送指令，启动一个全新的 Docker 容器作为代码运行环境。
+    返回：将成功创建的沙箱 ID 写回账本。
+    """
+    client = SandboxClient()
+    print("正在创建隔离沙箱环境...")
+
+    # timeout=3600 表示允许这个沙箱存活 1 小时，防止大模型思考太久导致沙箱被系统自动干掉
+    sb = client.create_sandbox(template_name=TEMPLATE_NAME, timeout=3600)
+
+    # 健康检查：尝试在沙箱里打印 ready，确保它真的活过来了
+    result = sb.run("echo ready", timeout=5)
+    if result.exit_code != 0:
+        raise RuntimeError("沙箱健康检查失败！")
+
+    print(f"沙箱准备就绪: {sb.name}")
+    return {"sandbox_id": sb.name}
+
+
+def run_agent(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 3：智能体核心大脑】
+    作用：将大模型与沙箱工具结合。如果是复杂任务，让它自己写代码并去沙箱运行；如果是简单任务，直接回答。
+    返回：把大模型的最终回答追加到账本的 messages 列表里。
+    """
+    # 初始化你的本地 Ollama 模型
+    llm = ChatOpenAI(
+        base_url=os.getenv("OPENAI_API_BASE", "http://127.0.0.1:11434/v1"),
+        api_key=os.getenv("OPENAI_API_KEY", "ollama"),
+        model=os.getenv("MODEL_NAME", "qwen3.5:0.8b"),
+        temperature=0.1
+    )
+
+    # 路线 A：如果账本上有 sandbox_id，说明前方已经为它准备好了沙箱
+    if state.get("sandbox_id"):
+        client = SandboxClient()
+        sb = client.get_sandbox(name=state["sandbox_id"])
+        backend = LangSmithBackend(sb)  # 给大模型装上“沙箱机械臂”
+
+        # 组装超级机器人
+        agent = create_deep_agent(
+            model=llm,
+            backend=backend,
+            system_prompt="You are a helpful coding assistant with filesystem access via a sandbox.",
+            checkpointer=MemorySaver(),  # 给它记忆功能
+        )
+
+        # 让机器人开始干活（这步是自动死循环，直到任务成功才会退出）
+        result = agent.invoke(
+            {"messages": state["messages"]},
+            config={"configurable": {"thread_id": state["sandbox_id"]}},
+        )
+        return {"messages": result["messages"]}
+
+    # 路线 B：如果账本上没有沙箱，说明只是简单问候，直接盲答
+    else:
+        print("[Agent 执行] 检测到无沙箱模式，正在以纯文本直接回复...")
+        response = llm.invoke(state["messages"])
+        return {"messages": [response]}
+
+
+def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 4：打扫战场】
+    作用：无论是正常结束还是中途报错，最终都会流经这里，负责强制删除 Docker 容器，防止内存泄露。
+    返回：把账本上的 sandbox_id 清空。
+    """
+    if state.get("sandbox_id"):
+        print(f"正在清理并销毁沙箱: {state['sandbox_id']}...")
+        client = SandboxClient()
+        try:
+            client.delete_sandbox(state["sandbox_id"])
+            print("沙箱已彻底删除，内存已释放。")
+        except Exception as e:
+            print(f"警告: 沙箱删除失败: {e}")
+    else:
+        print("[生命周期] 检查完毕：本次会话未启动沙箱，无需清理。")
+
+    return {"sandbox_id": None}

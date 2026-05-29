@@ -1,6 +1,6 @@
 # My Deep Agent
 
-本地化的 AI 代码执行 Agent，基于 LangGraph 编排，使用 Ollama 本地模型驱动，Docker 沙箱安全隔离执行代码。
+本地化的 AI 代码执行 Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入任意 LLM，Docker 沙箱安全隔离执行代码。
 
 ## 架构
 
@@ -26,8 +26,8 @@
 ### 依赖
 
 - Python >= 3.13
-- [Ollama](https://ollama.com/) 本地运行（配置见下）
-- [OpenSandbox](https://opensandbox.dev/) 沙箱服务（运行在本地或局域网）
+- 任意兼容 OpenAI 协议的 LLM 服务（如 Ollama、OpenAI API、vLLM、Azure OpenAI 等）
+- [OpenSandbox](https://opensandbox.dev/) 沙箱服务
 
 ### 安装
 
@@ -41,12 +41,20 @@ pip install -e .
 
 ### 配置
 
-编辑 `config.env`：
+编辑 `config.env`，按需填写 LLM 地址和模型名（兼容任何 OpenAI API 格式的服务）：
 
 ```env
-OPENAI_API_BASE=http://127.0.0.1:11434/v1
-OPENAI_API_KEY=ollama
-MODEL_NAME=qwen3.5:0.8b
+# 例如使用 Ollama 本地模型:
+# OPENAI_API_BASE=http://127.0.0.1:11434/v1
+# OPENAI_API_KEY=ollama
+# MODEL_NAME=qwen3.5:0.8b
+
+# 例如使用 OpenAI:
+# OPENAI_API_BASE=https://api.openai.com/v1
+# OPENAI_API_KEY=sk-xxxxx
+# MODEL_NAME=gpt-4o
+
+# 沙箱服务地址
 OPENSANDBOX_API_URL=http://127.0.0.1:8080
 ```
 

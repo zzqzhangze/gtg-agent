@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any
 from deepagents import create_deep_agent
@@ -9,40 +10,153 @@ from src.sandbox.client import SandboxClient
 from src.sandbox.backend import LangSmithBackend
 from src.agent.state import SandboxAgentState
 
-TEMPLATE_NAME = "python-sandbox"
+TEMPLATE_FALLBACK = "python-sandbox"
+
+# ── LLM 意图分析系统提示词 ────────────────────────────────────────────
+_INTENT_SYSTEM_PROMPT = """You are an intelligent task intent analyzer. Classify the user's last message into one of these task types:
+
+- chat: Pure conversation, greetings, casual talk. No computation needed.
+- compute: Simple calculation, math, reasoning that LLM can handle directly without sandbox.
+- code_exec: User needs code to be written and executed. No file upload needed.
+- data_analysis: User uploaded files and needs analysis. Requires sandbox + files.
+- multi_step: Complex project requiring multiple iterations (web app, multi-file project, etc).
+
+Sandbox templates (only relevant if sandbox is needed):
+- python-sandbox: General Python coding tasks
+- data-analysis: Data analysis with pandas/numpy/matplotlib
+- node-sandbox: Node.js/JavaScript/TypeScript tasks
+
+Respond in JSON format only (no markdown, no code fences):
+{
+    "task_type": "chat|compute|code_exec|data_analysis|multi_step",
+    "reasoning": "Brief explanation in Chinese of why this classification",
+    "suggested_template": "template_name or null if no sandbox needed",
+    "needs_sandbox": true or false
+}
+
+Examples:
+User: "你好" -> {"task_type": "chat", "reasoning": "纯问候，无需计算或执行", "suggested_template": null, "needs_sandbox": false}
+User: "25 * 48 等于多少" -> {"task_type": "compute", "reasoning": "简单数学计算，LLM 可直接回答", "suggested_template": null, "needs_sandbox": false}
+User: "用Python打印斐波那契数列前20项" -> {"task_type": "code_exec", "reasoning": "需要写代码并执行验证结果", "suggested_template": "python-sandbox", "needs_sandbox": true}
+User: "帮我写一个完整的博客网站" -> {"task_type": "multi_step", "reasoning": "复杂项目需要多轮迭代开发", "suggested_template": "node-sandbox", "needs_sandbox": true}
+User: "分析这个CSV" with uploaded files -> {"task_type": "data_analysis", "reasoning": "需要读取上传的文件进行数据分析", "suggested_template": "data-analysis", "needs_sandbox": true}
+"""
+
+
+def _parse_intent_json(content: str) -> dict[str, Any] | None:
+    """从 LLM 响应中提取 JSON，兼容可能的 markdown 代码围栏。"""
+    text = content.strip()
+    # 移除 markdown 代码围栏
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # 去掉第一行 ```xxx 和最后一行 ```
+        text = "\n".join(lines[1:])
+        if text.endswith("```"):
+            text = text[:-3].strip()
+        elif text.endswith("``"):
+            text = text[:-2].strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
 
 
 def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
     """
     【车间 1：意图分析】
-    作用：充当门卫，拦截并分析用户的最后一句话，决定后续走哪条路线。
-    返回：更新账本上的 needs_sandbox 字段。
+    作用：用 LLM 分析用户意图，智能判断是否需要沙箱以及使用哪种模板。
+    LLM 调用失败时自动回退到关键词匹配。
+    返回：更新账本上的 task_type, intent_reasoning, suggested_template, needs_sandbox。
     """
-    # 提取用户最新的一条消息
     last_message = state["messages"][-1].content
     print(f"\n[意图分析] 收到用户提问: '{last_message}'")
 
-    # 简单的关键词匹配逻辑（如果未来换了强大的大模型，可以改成让大模型来判断）
-    keywords = ["跑", "执行", "代码", "python", "sh", "cmd", "打印", "run", "exec"]
-    if any(kw in last_message.lower() for kw in keywords):
-        print("[意图分析] 🔍 决定【启动】沙箱。")
-        return {"needs_sandbox": True}
+    # 检测是否有待上传的文件（影响意图判断）
+    uploaded_files = state.get("input_files", [])
+    file_context = f"\n(用户已上传文件: {uploaded_files})" if uploaded_files else ""
 
-    print("[意图分析] 📝 纯聊天意图，决定【跳过】沙箱。")
-    return {"needs_sandbox": False}
+    try:
+        llm = ChatOpenAIWithReasoning(
+            base_url=settings.openai_api_base,
+            api_key=settings.openai_api_key,
+            model=settings.model_name,
+            temperature=0.1,
+        )
+
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        response = llm.invoke([
+            SystemMessage(content=_INTENT_SYSTEM_PROMPT),
+            HumanMessage(content=f"用户消息: {last_message}{file_context}"),
+        ])
+
+        parsed = _parse_intent_json(response.content)
+        if parsed is None:
+            raise ValueError(f"LLM 返回无法解析: {response.content[:200]}")
+
+        task_type = parsed.get("task_type", "chat")
+        reasoning = parsed.get("reasoning", "")
+        suggested_template = parsed.get("suggested_template")
+        needs_sandbox = parsed.get("needs_sandbox", False)
+
+        # 校验 task_type 合法性
+        valid_types = {"chat", "compute", "code_exec", "data_analysis", "multi_step"}
+        if task_type not in valid_types:
+            print(f"[意图分析] ⚠️ LLM 返回未知 task_type={task_type}，回退到 chat")
+            task_type, needs_sandbox = "chat", False
+
+        print(f"[意图分析] 🤖 LLM 分类: {task_type}")
+        if reasoning:
+            print(f"[意图分析]   └─ 推理: {reasoning}")
+        if suggested_template:
+            print(f"[意图分析]   └─ 模板: {suggested_template}")
+        return {
+            "task_type": task_type,
+            "intent_reasoning": reasoning,
+            "suggested_template": suggested_template,
+            "needs_sandbox": needs_sandbox,
+        }
+
+    except Exception as e:
+        print(f"[意图分析] ⚠️ LLM 分析失败 ({type(e).__name__}: {e})")
+        print("[意图分析]   └─ 回退到关键词匹配模式")
+
+        # Fallback: keyword matching
+        keywords = [
+            "跑", "执行", "代码", "python", "sh", "cmd",
+            "打印", "run", "exec", "分析", "统计", "计算",
+        ]
+        if any(kw in last_message.lower() for kw in keywords):
+            print("[意图分析] 🔍 关键词匹配 → code_exec")
+            return {
+                "task_type": "code_exec",
+                "intent_reasoning": "关键词匹配（LLM fallback）",
+                "suggested_template": "python-sandbox",
+                "needs_sandbox": True,
+            }
+        print("[意图分析] 📝 无关键词匹配 → chat")
+        return {
+            "task_type": "chat",
+            "intent_reasoning": "关键词无匹配（LLM fallback）",
+            "suggested_template": None,
+            "needs_sandbox": False,
+        }
 
 
 def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     """
     【车间 2：拉起沙箱】
-    作用：向 WSL 发送指令，启动一个全新的 Docker 容器作为代码运行环境。
+    作用：启动一个 Docker 容器作为代码运行环境。
+    模板名优先使用 state.suggested_template（由 analyze_intent 提供），
+    未指定时回退到 TEMPLATE_FALLBACK。
     返回：将成功创建的沙箱 ID 写回账本。
     """
     client = SandboxClient()
-    print("正在创建隔离沙箱环境...")
+    template = state.get("suggested_template") or TEMPLATE_FALLBACK
+    print(f"正在创建隔离沙箱环境 (模板: {template})...")
 
     sb = client.create_sandbox(
-        template_name=TEMPLATE_NAME,
+        template_name=template,
         timeout=settings.sandbox_lifetime_seconds,
     )
 

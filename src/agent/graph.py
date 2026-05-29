@@ -14,9 +14,13 @@ from src.agent.nodes import (
 def route_after_analysis(state: SandboxAgentState) -> str:
     """
     自定义的轨道道岔（路由器）：
-    根据意图分析节点的结论，告诉系统下一步该把数据传给哪个车间。
+    根据 task_type 决定下一步路线。
+    chat / compute → 直接 LLM 回复（无需沙箱）
+    code_exec / data_analysis / multi_step → 创建沙箱
     """
-    if state.get("needs_sandbox"):
+    task_type = state.get("task_type", "chat")
+    sandbox_types = {"code_exec", "data_analysis", "multi_step"}
+    if task_type in sandbox_types:
         return "create_sandbox"  # 拨向创建沙箱的轨道
     return "run_agent"  # 拨向直接聊天的轨道
 

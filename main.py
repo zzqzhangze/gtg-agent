@@ -8,9 +8,13 @@ CLI 入口 — 支持单次执行与交互式 REPL 两种模式。
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import shutil
+
+# Diagnostic logging for reasoning_content fix
+logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s %(message)s", stream=sys.stderr)
 
 from src.agent.graph import build_graph
 

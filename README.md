@@ -112,7 +112,7 @@ my_deep_agent/
 ├── uv.lock             # uv 依赖锁定文件
 ├── .python-version     # Python 版本声明
 ├── config.env          # 环境变量配置
-├── Agent.md            # 开发者文档
+├── AGENTS.md           # AI 行为指令
 ├── src/                # 核心代码
 │   ├── config.py       # 集中配置（所有环境变量在此读取）
 │   ├── sandbox/        # 沙箱接口层
@@ -121,7 +121,7 @@ my_deep_agent/
 └── docs/               # 备选方案、设计文档存档
 ```
 
-> 开发相关说明（核心概念、如何扩展）见 [Agent.md](Agent.md)。
+> AI 行为指令（文档铁律、代码约束、扩展工作流）见 [AGENTS.md](AGENTS.md)。
 
 ## 许可
 

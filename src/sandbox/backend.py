@@ -10,6 +10,7 @@ from deepagents.backends.protocol import (
     FileUploadResponse,
 )
 from deepagents.backends.sandbox import BaseSandbox
+from src.config import settings
 
 if TYPE_CHECKING:
     from langsmith.sandbox import Sandbox
@@ -23,15 +24,16 @@ class LangSmithBackend(BaseSandbox):
     LangSmith's native sandbox API.
     """
 
-    def __init__(self, sandbox: Sandbox, timeout: int = 30 * 60) -> None:
+    def __init__(self, sandbox: Sandbox, timeout: int | None = None) -> None:
         """Initialize the LangSmithBackend with a sandbox instance.
 
         Args:
             sandbox: LangSmith Sandbox instance
-            timeout: Command execution timeout in seconds (default: 30 minutes)
+            timeout: Command execution timeout in seconds.
+                     Defaults to sandbox_command_timeout_seconds from config (300).
         """
         self._sandbox = sandbox
-        self._timeout = timeout
+        self._timeout = timeout if timeout is not None else settings.sandbox_command_timeout_seconds
 
     @property
     def id(self) -> str:

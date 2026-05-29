@@ -5,6 +5,7 @@ from typing import Any
 from datetime import timedelta
 from opensandbox import Sandbox
 from opensandbox.config import ConnectionConfig
+from opensandbox.models.execd import RunCommandOpts
 from src.config import settings
 
 # =========================================================================
@@ -27,11 +28,17 @@ def get_background_loop():
     return _BACKGROUND_LOOP
 
 
-def run_async_backend(coro):
-    """将一部任务安全地抛给后台管家，并在主线程原地等待结果返回"""
+def run_async_backend(coro, timeout: float | None = None):
+    """将一部任务安全地抛给后台管家，并在主线程原地等待结果返回。
+
+    Args:
+        coro: 要执行的异步协程。
+        timeout: 可选的最大等待秒数。超时未完成抛出 TimeoutError。
+                 不传则无限等待（由底层操作自己控制超时）。
+    """
     loop = get_background_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result()
+    return future.result(timeout=timeout)
 
 
 # 全局内存字典，用来在不同节点之间暂存真实的 Sandbox 网络连接对象
@@ -66,7 +73,15 @@ class LocalSandbox:
 
         run_async_backend(_write())
 
-    def run(self, cmd: str, timeout: int = 5) -> Any:
+    def run(self, cmd: str, timeout: int = 300) -> Any:
+        """
+        在沙箱内执行 shell 命令。
+
+        Args:
+            cmd: 要执行的 shell 命令。
+            timeout: 命令最大执行时间（秒），超时后服务端会强制终止进程。
+                     默认 300 秒（5 分钟）。设为 0 表示不限制（危险）。
+        """
         class RunResult:
             def __init__(self, stdout: str, stderr: str, exit_code: int):
                 self.stdout = stdout
@@ -76,11 +91,17 @@ class LocalSandbox:
         try:
             print(f"[沙箱执行] 执行命令: {cmd}")
 
-            # 在后台线程真实去执行命令
-            async def _execute():
-                return await self.sb.commands.run(cmd)
+            # 构造带超时的执行选项，传给服务端
+            opts = None
+            if timeout > 0:
+                opts = RunCommandOpts(timeout=timedelta(seconds=timeout))
 
-            execution = run_async_backend(_execute())
+            async def _execute():
+                return await self.sb.commands.run(cmd, opts=opts)
+
+            # 客户端兜底超时：服务端超时 + 5 秒网络缓冲
+            client_timeout = (timeout + 5) if timeout > 0 else None
+            execution = run_async_backend(_execute(), timeout=client_timeout)
 
             # 兼容处理标准输出和错误
             stdout_lines = [log.text for log in execution.logs.stdout] if getattr(execution.logs, "stdout",
@@ -104,7 +125,12 @@ class SandboxClient:
     def __init__(self):
         self.domain = settings.sandbox_url
         self.api_key = settings.sandbox_api_key
-        self.config = ConnectionConfig(domain=self.domain, api_key=self.api_key, use_server_proxy=settings.sandbox_use_server_proxy)
+        self.config = ConnectionConfig(
+            domain=self.domain,
+            api_key=self.api_key,
+            use_server_proxy=settings.sandbox_use_server_proxy,
+            request_timeout=timedelta(seconds=settings.sandbox_request_timeout_seconds),
+        )
 
     def get_template(self, name: str):
         return True

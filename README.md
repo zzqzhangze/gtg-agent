@@ -5,23 +5,28 @@
 ## 架构
 
 ```
-用户输入 → analyze_intent（判断是否需要沙箱）
-               │
-          ┌─────┴─────┐
-          │ 需要沙箱   │ 纯聊天
-          ▼            ▼
-   create_sandbox     run_agent（直接 LLM 回复）
-          │
-   upload_files（上传用户文件到沙箱）
-          │
-   run_agent（DeepAgent 在沙箱内写代码+执行）
-          │
-   detect_output_files（自动扫描沙箱发现新文件）
-          │
-   download_files（从沙箱下载结果文件）
-          │
-   cleanup_sandbox（强制销毁容器）
+用户输入 → analyze_intent（LLM 驱动意图分析）
+               │               
+          ┌─────┴──────────┬──────────┐
+          │ chat/compute   │code_exec │ data_analysis/multi_step
+          │ (无需沙箱)     │          │
+          ▼                ▼          ▼
+   run_agent         create_sandbox（动态选择模板）
+   （直接 LLM 回复）      │
+                   upload_files（上传用户文件到沙箱）
+                         │
+                   run_agent（DeepAgent 在沙箱内写代码+执行）
+                         │
+                   detect_output_files（自动扫描沙箱发现新文件）
+                         │
+                   download_files（从沙箱下载结果文件）
+                         │
+                   cleanup_sandbox（强制销毁容器）
 ```
+
+> 意图分析不再依赖关键词匹配，改为 LLM 分类，支持五种任务类型：
+> `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
+> 沙箱模板根据 `data_analysis` 等类型动态选择，而非固定使用 `python-sandbox`。
 
 ## 快速开始
 

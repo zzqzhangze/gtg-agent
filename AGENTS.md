@@ -17,6 +17,7 @@
 - `cleanup_sandbox` 是必经节点，新增沙箱节点必须在它之前。
 - 禁止使用 `as any`、`# type: ignore`、`@ts-ignore` 压制类型错误。
 - 每个节点都要处理异常，不能因为一个节点失败阻塞整个图。
+- `analyze_intent` 使用 LLM 驱动意图分类（而非关键词匹配）。修改其行为应调整 `_INTENT_SYSTEM_PROMPT` 常量而非关键词列表。LLM 调用失败时自动回退到关键词匹配。
 
 ## 扩展工作流（加节点）
 

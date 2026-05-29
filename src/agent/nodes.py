@@ -41,8 +41,10 @@ def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     client = SandboxClient()
     print("正在创建隔离沙箱环境...")
 
-    # timeout=3600 表示允许这个沙箱存活 1 小时，防止大模型思考太久导致沙箱被系统自动干掉
-    sb = client.create_sandbox(template_name=TEMPLATE_NAME, timeout=3600)
+    sb = client.create_sandbox(
+        template_name=TEMPLATE_NAME,
+        timeout=settings.sandbox_lifetime_seconds,
+    )
 
     # 健康检查：尝试在沙箱里打印 ready，确保它真的活过来了
     result = sb.run("echo ready", timeout=5)
@@ -71,7 +73,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
     if state.get("sandbox_id"):
         client = SandboxClient()
         sb = client.get_sandbox(name=state["sandbox_id"])
-        backend = LangSmithBackend(sb)  # 给大模型装上“沙箱机械臂”
+        backend = LangSmithBackend(sb)  # 给大模型装上"沙箱机械臂"
 
         # 组装超级机器人
         agent = create_deep_agent(
@@ -150,6 +152,44 @@ def upload_files(state: SandboxAgentState) -> dict[str, Any]:
 
     print(f"[文件上传] 完成，共上传 {len(uploaded)} 个文件。")
     return {"uploaded_paths": uploaded}
+
+
+def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 6：自动发现沙箱输出文件】
+    作用：DeepAgent 在沙箱内执行完代码后，自动扫描 /workspace/ 下新产生的文件
+          （排除用户上传的 /workspace/input/ 目录），填充 state.output_files。
+    这样智能体不需要特意声明它创建了哪些文件——框架自己感知。
+    """
+    if not state.get("sandbox_id"):
+        print("[文件发现] 没有可用沙箱，跳过。")
+        return {"output_files": []}
+
+    client = SandboxClient()
+    sb = client.get_sandbox(name=state["sandbox_id"])
+
+    # 扫描沙箱工作目录，排除 input 目录（用户上传的文件）
+    print("[文件发现] 扫描沙箱 /workspace/ 查找新文件...")
+    result = sb.run(
+        "find /workspace -type f ! -path '/workspace/input/*' 2>/dev/null || true",
+        timeout=settings.sandbox_command_timeout_seconds,
+    )
+
+    if result.exit_code != 0:
+        print(f"[文件发现] 扫描失败 (exit={result.exit_code}): {result.stderr}")
+        return {"output_files": []}
+
+    # 解析输出：每行一个文件路径
+    files = [line.strip() for line in result.stdout.split("\n") if line.strip()]
+    if not files:
+        print("[文件发现] 未发现新文件。")
+        return {"output_files": []}
+
+    print(f"[文件发现] 发现 {len(files)} 个文件:")
+    for f in files:
+        print(f"  - {f}")
+
+    return {"output_files": files}
 
 
 def download_files(state: SandboxAgentState) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from src.agent.nodes import (
     create_sandbox,
     upload_files,
     run_agent,
+    detect_output_files,
     download_files,
     cleanup_sandbox,
 )
@@ -30,6 +31,7 @@ def build_graph():
     builder.add_node("create_sandbox", create_sandbox)
     builder.add_node("upload_files", upload_files)
     builder.add_node("run_agent", run_agent)
+    builder.add_node("detect_output_files", detect_output_files)
     builder.add_node("download_files", download_files)
     builder.add_node("cleanup_sandbox", cleanup_sandbox)
 
@@ -53,8 +55,11 @@ def build_graph():
     # 文件上传完，再交给大模型运行
     builder.add_edge("upload_files", "run_agent")
 
-    # 大模型跑完，把结果文件下载回本地
-    builder.add_edge("run_agent", "download_files")
+    # 大模型跑完，自动发现沙箱内新产生的文件
+    builder.add_edge("run_agent", "detect_output_files")
+
+    # 发现完文件，下载回本地
+    builder.add_edge("detect_output_files", "download_files")
 
     # ⚠️ 绝对安全防线：下载完成后强制清理沙箱
     builder.add_edge("download_files", "cleanup_sandbox")

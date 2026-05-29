@@ -16,6 +16,8 @@
           │
    run_agent（DeepAgent 在沙箱内写代码+执行）
           │
+   detect_output_files（自动扫描沙箱发现新文件）
+          │
    download_files（从沙箱下载结果文件）
           │
    cleanup_sandbox（强制销毁容器）

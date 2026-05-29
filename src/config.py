@@ -39,11 +39,11 @@ class Settings:
             openai_api_base=os.getenv("OPENAI_API_BASE", cls.openai_api_base),
             openai_api_key=os.getenv("OPENAI_API_KEY", cls.openai_api_key),
             model_name=os.getenv("MODEL_NAME", cls.model_name),
-            sandbox_url=os.getenv("OPENSANDBOX_API_URL", cls.sandbox_url),
+            sandbox_url=os.getenv("SANDBOX_API_URL", cls.sandbox_url),
             sandbox_api_key=os.getenv("SANDBOX_API_KEY", cls.sandbox_api_key),
             sandbox_use_server_proxy=(
-                os.getenv("SANDBOX_USE_SERVER_PROXY", str(cls.sandbox_use_server_proxy)).lower()
-                in ("true", "1", "yes")
+                    os.getenv("SANDBOX_USE_SERVER_PROXY", str(cls.sandbox_use_server_proxy)).lower()
+                    in ("true", "1", "yes")
             ),
         )
 

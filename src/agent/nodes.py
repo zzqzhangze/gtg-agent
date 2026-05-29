@@ -1,10 +1,10 @@
 import os
 from typing import Any
-from langchain_openai import ChatOpenAI
 from deepagents import create_deep_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from src.config import settings
+from src.llm import ChatOpenAIWithReasoning
 from src.sandbox.client import SandboxClient
 from src.sandbox.backend import LangSmithBackend
 from src.agent.state import SandboxAgentState
@@ -60,7 +60,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
     返回：把大模型的最终回答追加到账本的 messages 列表里。
     """
     # 初始化 LLM（通过 settings 读取配置，支持任意 OpenAI 兼容服务）
-    llm = ChatOpenAI(
+    llm = ChatOpenAIWithReasoning(
         base_url=settings.openai_api_base,
         api_key=settings.openai_api_key,
         model=settings.model_name,

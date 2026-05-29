@@ -43,18 +43,16 @@ uv sync
 编辑 `config.env`，按需填写 LLM 地址和模型名（兼容任何 OpenAI API 格式的服务）：
 
 ```env
-# 例如使用 Ollama 本地模型:
-# OPENAI_API_BASE=http://127.0.0.1:11434/v1
-# OPENAI_API_KEY=ollama
-# MODEL_NAME=qwen3.5:0.8b
+# ── LLM ──────────────────────────────────────────────────────────────
+# 兼容任何 OpenAI API 格式的服务（Ollama / OpenAI / vLLM / DeepSeek 等）
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_API_KEY=sk-xxxxx
+MODEL_NAME=gpt-4o
 
-# 例如使用 OpenAI:
-# OPENAI_API_BASE=https://api.openai.com/v1
-# OPENAI_API_KEY=sk-xxxxx
-# MODEL_NAME=gpt-4o
-
-# 沙箱服务地址
-OPENSANDBOX_API_URL=http://127.0.0.1:8080
+# ── Sandbox ──────────────────────────────────────────────────────────
+SANDBOX_API_URL=http://127.0.0.1:8080
+# SANDBOX_API_KEY=my-secret-api-key-007
+# SANDBOX_USE_SERVER_PROXY=false   # 是否通过代理连接沙箱
 ```
 
 ### 运行
@@ -62,12 +60,23 @@ OPENSANDBOX_API_URL=http://127.0.0.1:8080
 **命令行模式：**
 
 ```bash
-# 纯聊天测试
+# 交互式对话（REPL）
 python main.py
 
-# 带文件和消息
+# 单次执行（带消息和文件）
 python main.py "帮我总结这个文件" report.txt data.csv
 ```
+
+REPL 模式下支持以下命令：
+
+| 命令 | 说明 |
+|------|------|
+| `/file <路径>` | 添加文件到本轮对话 |
+| `/files` | 查看已添加的文件列表 |
+| `/clear` | 清空文件列表 |
+| `/history` | 查看当前对话历史 |
+| `/help` | 显示帮助 |
+| `/exit` 或 Ctrl+C | 退出 |
 
 **API 服务模式：**
 
@@ -105,6 +114,7 @@ my_deep_agent/
 ├── config.env          # 环境变量配置
 ├── Agent.md            # 开发者文档
 ├── src/                # 核心代码
+│   ├── config.py       # 集中配置（所有环境变量在此读取）
 │   ├── sandbox/        # 沙箱接口层
 │   └── agent/          # Agent 编排层
 ├── downloads/          # 沙箱结果文件下载目录（自动创建）

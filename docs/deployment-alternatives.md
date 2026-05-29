@@ -296,7 +296,7 @@ FastAPI 自建                    LangServe                     gRPC + Worker
 
 | 方案 | 新增依赖 | 额外基础设施 |
 |------|----------|-------------|
-| FastAPI 自建 | `fastapi`, `uvicorn`, `python-multipart` | 无 |
+| FastAPI 自建 | `fastapi`, `uvicorn`, `python-multipart` | 无（`uv add fastapi uvicorn python-multipart`） |
 | LangServe | `langserve` | 无（可选 LangSmith） |
 | gRPC + Worker | `grpcio`, `grpcio-tools` | 无（可选 etcd/Redis） |
 | WebSocket | `websockets`（内置 FastAPI） | 无 |

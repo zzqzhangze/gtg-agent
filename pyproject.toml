@@ -1,7 +1,7 @@
 [project]
 name = "my-deep-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local AI code-execution agent with LangGraph orchestration, OpenAI-compatible LLM, and Docker sandbox isolation"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

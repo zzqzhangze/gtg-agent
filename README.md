@@ -31,12 +31,11 @@
 
 ### 安装
 
-```bash
-# 使用 uv（推荐）
-uv sync
+项目使用 [uv](https://docs.astral.sh/uv/) 管理虚拟环境和依赖：
 
-# 或使用 pip
-pip install -e .
+```bash
+# 创建 .venv 并安装所有依赖
+uv sync
 ```
 
 ### 配置
@@ -73,8 +72,8 @@ python main.py "帮我总结这个文件" report.txt data.csv
 **API 服务模式：**
 
 ```bash
-# 安装额外依赖
-pip install fastapi uvicorn python-multipart
+# 安装额外依赖（如已在 pyproject.toml 中声明则跳过）
+uv add fastapi uvicorn python-multipart
 
 # 启动服务
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload
@@ -98,13 +97,17 @@ API 端点：
 
 ```
 my_deep_agent/
-├── api.py              # FastAPI 服务入口（启动后调这个）
-├── main.py             # 命令行入口（本地测试用）
-├── config.env          # 环境变量配置（改模型、改端口在这里）
-├── Agent.md            # 开发者文档：开发原则与规范
+├── api.py              # FastAPI 服务入口
+├── main.py             # 命令行入口
+├── pyproject.toml      # 项目元数据与依赖声明
+├── uv.lock             # uv 依赖锁定文件
+├── .python-version     # Python 版本声明
+├── config.env          # 环境变量配置
+├── Agent.md            # 开发者文档
 ├── src/                # 核心代码
 │   ├── sandbox/        # 沙箱接口层
 │   └── agent/          # Agent 编排层
+├── downloads/          # 沙箱结果文件下载目录（自动创建）
 └── docs/               # 备选方案、设计文档存档
 ```
 

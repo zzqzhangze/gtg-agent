@@ -32,6 +32,21 @@ class Settings:
     sandbox_api_key: str = "my-secret-api-key-007"
     sandbox_use_server_proxy: bool = True
 
+    # 沙箱生命周期超时（秒）：容器创建后多久自动销毁。
+    # 如果任务耗时较长，可以调大这个值，防止智能体没跑完沙箱就被回收。
+    sandbox_lifetime_seconds: int = 3600  # 1 hour
+
+    # 单条命令执行超时（秒）：沙箱内每条 shell 命令最多跑多久。
+    # 智能体在沙箱里执行 Python 脚本、安装依赖等操作受此限制。
+    # 同时控制 LangSmithBackend.execute()（DeepAgent 内部）和
+    # detect_output_files 等直接 sb.run() 调用的超时。
+    # 设为 0 表示不设超时（不推荐）。
+    sandbox_command_timeout_seconds: int = 300  # 5 minutes
+
+    # HTTP 请求超时（秒）：读写沙箱文件等 HTTP 调用的超时。
+    # 网络状况差时可以适当调大。
+    sandbox_request_timeout_seconds: int = 30
+
     @classmethod
     def from_env(cls) -> Settings:
         """从环境变量构建配置，缺失时回退到字段默认值。"""
@@ -44,6 +59,15 @@ class Settings:
             sandbox_use_server_proxy=(
                     os.getenv("SANDBOX_USE_SERVER_PROXY", str(cls.sandbox_use_server_proxy)).lower()
                     in ("true", "1", "yes")
+            ),
+            sandbox_lifetime_seconds=int(
+                os.getenv("SANDBOX_LIFETIME_TIMEOUT", str(cls.sandbox_lifetime_seconds))
+            ),
+            sandbox_command_timeout_seconds=int(
+                os.getenv("SANDBOX_COMMAND_TIMEOUT", str(cls.sandbox_command_timeout_seconds))
+            ),
+            sandbox_request_timeout_seconds=int(
+                os.getenv("SANDBOX_REQUEST_TIMEOUT", str(cls.sandbox_request_timeout_seconds))
             ),
         )
 

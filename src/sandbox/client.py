@@ -1,4 +1,3 @@
-import os
 import uuid
 import threading
 import asyncio
@@ -6,6 +5,7 @@ from typing import Any
 from datetime import timedelta
 from opensandbox import Sandbox
 from opensandbox.config import ConnectionConfig
+from src.config import settings
 
 # =========================================================================
 # 【黑科技区：后台常驻事件循环】
@@ -102,9 +102,9 @@ class LocalSandbox:
 
 class SandboxClient:
     def __init__(self):
-        self.domain = os.getenv('SANDBOX', '127.0.0.1:8080')
-        self.api_key = os.getenv('SANDBOX_API_KEY', 'my-secret-api-key-007')
-        self.config = ConnectionConfig(domain=self.domain, api_key=self.api_key, use_server_proxy=True)
+        self.domain = settings.sandbox_url
+        self.api_key = settings.sandbox_api_key
+        self.config = ConnectionConfig(domain=self.domain, api_key=self.api_key, use_server_proxy=settings.sandbox_use_server_proxy)
 
     def get_template(self, name: str):
         return True

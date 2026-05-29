@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 from deepagents import create_deep_agent
 from langgraph.checkpoint.memory import MemorySaver
 
+from src.config import settings
 from src.sandbox.client import SandboxClient
 from src.sandbox.backend import LangSmithBackend
 from src.agent.state import SandboxAgentState
@@ -58,11 +59,11 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
     作用：将大模型与沙箱工具结合。如果是复杂任务，让它自己写代码并去沙箱运行；如果是简单任务，直接回答。
     返回：把大模型的最终回答追加到账本的 messages 列表里。
     """
-    # 初始化你的本地 Ollama 模型
+    # 初始化 LLM（通过 settings 读取配置，支持任意 OpenAI 兼容服务）
     llm = ChatOpenAI(
-        base_url=os.getenv("OPENAI_API_BASE", "http://127.0.0.1:11434/v1"),
-        api_key=os.getenv("OPENAI_API_KEY", "ollama"),
-        model=os.getenv("MODEL_NAME", "qwen3.5:0.8b"),
+        base_url=settings.openai_api_base,
+        api_key=settings.openai_api_key,
+        model=settings.model_name,
         temperature=0.1
     )
 

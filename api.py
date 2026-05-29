@@ -13,20 +13,15 @@ FastAPI 服务入口 — 将 LangGraph Agent 暴露为 REST API。
     pip install fastapi uvicorn python-multipart
 """
 
-import os
 import uuid
 import tempfile
 import shutil
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 
-# 加载环境变量
-env_path = os.path.join(os.path.dirname(__file__), "config.env")
-load_dotenv(dotenv_path=env_path)
-
+# 配置由 src.config 在 import 时自动加载 config.env
 from src.agent.graph import build_graph
 
 app = FastAPI(

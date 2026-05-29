@@ -1,12 +1,6 @@
-import os
 import sys
-from dotenv import load_dotenv
 
-# 明确指定加载 config.env 文件
-# os.path.join 确保无论你在哪个目录运行脚本，都能准确找到这个文件
-env_path = os.path.join(os.path.dirname(__file__), 'config.env')
-load_dotenv(dotenv_path=env_path)
-
+# 配置由 src.config 在 import 时自动加载 config.env
 from src.agent.graph import build_graph
 
 if __name__ == "__main__":

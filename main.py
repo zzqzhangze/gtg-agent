@@ -44,11 +44,15 @@ HELP_TEXT = f"""
 
 
 # ── 核心处理 ─────────────────────────────────────────────────────────
-def stream_and_show(graph, input_data: dict, config: dict) -> None:
-    """执行图并打印所有输出（消息 + 文件传输记录）。"""
+def stream_and_show(graph, input_data: dict, config: dict) -> bool:
+    """执行图并打印所有输出。返回值表示文件是否已上传到沙箱。"""
+    files_uploaded = False
     for event in graph.stream(input_data, config, stream_mode="values"):
         _show_messages(event)
         _show_file_ops(event)
+        if event.get("uploaded_paths"):
+            files_uploaded = True
+    return files_uploaded
 
 
 def _show_messages(event: dict) -> None:
@@ -156,8 +160,9 @@ def run_interactive(graph) -> None:
                 print(f"  待上传文件 ({len(pending_files)}):")
                 for f in pending_files:
                     print(f"    {DIM(f)}")
+                print(f"  {DIM('(发送需要沙箱的消息时自动上传)')}")
             else:
-                print(DIM("  (暂无待上传文件)"))
+                print(DIM("  (暂无待上传文件，用 /file <路径> 添加)"))
             continue
 
         # ── 普通消息发送 ──────────────────────────────────────────
@@ -169,9 +174,13 @@ def run_interactive(graph) -> None:
         }
 
         print(BOLD("──── 回应 ────"))
-        stream_and_show(graph, input_data, config)
-        # 文件已消费（上传到本轮创建的沙箱），清空等待下一轮
-        pending_files.clear()
+        files_consumed = stream_and_show(graph, input_data, config)
+        if files_consumed:
+            # 文件已进入沙箱，清空列表等待下一轮
+            pending_files.clear()
+        elif pending_files:
+            # 本轮未触发沙箱（纯聊天），文件保留，下轮继续尝试
+            print(DIM(f"  (文件未使用，继续保留: {pending_files})"))
 
 
 def _show_history(messages: list[dict]) -> None:

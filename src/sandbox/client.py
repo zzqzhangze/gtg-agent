@@ -48,6 +48,24 @@ class LocalSandbox:
         self.name = name
         self.sb = sandbox_instance
 
+    def read(self, path: str) -> bytes:
+        """从沙箱读取文件内容（二进制），同步包装异步 sb.files.read_bytes()"""
+        print(f"[沙箱文件] 读取: {path}")
+
+        async def _read():
+            return await self.sb.files.read_bytes(path)
+
+        return run_async_backend(_read())
+
+    def write(self, path: str, data: str | bytes):
+        """将文件内容写入沙箱，同步包装异步 sb.files.write_file()"""
+        print(f"[沙箱文件] 写入: {path} ({len(data) if isinstance(data, bytes) else len(data)} bytes)")
+
+        async def _write():
+            await self.sb.files.write_file(path, data)
+
+        run_async_backend(_write())
+
     def run(self, cmd: str, timeout: int = 5) -> Any:
         class RunResult:
             def __init__(self, stdout: str, stderr: str, exit_code: int):
@@ -86,7 +104,7 @@ class SandboxClient:
     def __init__(self):
         self.domain = os.getenv('SANDBOX', '127.0.0.1:8080')
         self.api_key = os.getenv('SANDBOX_API_KEY', 'my-secret-api-key-007')
-        self.config = ConnectionConfig(domain=self.domain, api_key=self.api_key)
+        self.config = ConnectionConfig(domain=self.domain, api_key=self.api_key, use_server_proxy=True)
 
     def get_template(self, name: str):
         return True

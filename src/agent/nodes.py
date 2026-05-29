@@ -112,3 +112,80 @@ def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
         print("[生命周期] 检查完毕：本次会话未启动沙箱，无需清理。")
 
     return {"sandbox_id": None}
+
+
+def upload_files(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 5：文件上传】
+    作用：将 state.input_files 中指定的本地文件上传到沙箱内的 /workspace/input/ 目录。
+    返回：更新账本上的 sandbox_id（不变），以及 uploaded_paths 记录映射关系。
+    """
+    input_files = state.get("input_files", [])
+    if not input_files:
+        print("[文件上传] 没有需要上传的文件，跳过。")
+        return {"uploaded_paths": []}
+
+    if not state.get("sandbox_id"):
+        print("[文件上传] 错误：没有可用的沙箱。")
+        return {"uploaded_paths": []}
+
+    client = SandboxClient()
+    sb = client.get_sandbox(name=state["sandbox_id"])
+    uploaded = []
+
+    for local_path in input_files:
+        if not os.path.isfile(local_path):
+            print(f"[文件上传] 警告：本地文件不存在，跳过: {local_path}")
+            continue
+
+        basename = os.path.basename(local_path)
+        sandbox_path = f"/workspace/input/{basename}"
+        print(f"[文件上传] {local_path} → 沙箱:{sandbox_path}")
+
+        with open(local_path, "rb") as f:
+            sb.write(sandbox_path, f.read())
+
+        uploaded.append({"local": local_path, "sandbox": sandbox_path})
+
+    print(f"[文件上传] 完成，共上传 {len(uploaded)} 个文件。")
+    return {"uploaded_paths": uploaded}
+
+
+def download_files(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 6：文件下载】
+    作用：将沙箱内 output_files 指定的文件下载到本地 downloads/ 目录。
+    返回：记录下载结果到 downloaded_paths 字段。
+    """
+    output_files = state.get("output_files", [])
+    if not output_files:
+        print("[文件下载] 没有需要下载的文件，跳过。")
+        return {"downloaded_paths": []}
+
+    if not state.get("sandbox_id"):
+        print("[文件下载] 错误：没有可用的沙箱。")
+        return {"downloaded_paths": []}
+
+    client = SandboxClient()
+    sb = client.get_sandbox(name=state["sandbox_id"])
+
+    # 确保本地下载目录存在
+    download_dir = os.path.join(os.getcwd(), "downloads")
+    os.makedirs(download_dir, exist_ok=True)
+
+    downloaded = []
+    for sandbox_path in output_files:
+        basename = os.path.basename(sandbox_path)
+        local_path = os.path.join(download_dir, basename)
+
+        print(f"[文件下载] 沙箱:{sandbox_path} → {local_path}")
+
+        content = sb.read(sandbox_path)
+
+        with open(local_path, "wb") as f:
+            f.write(content)
+
+        downloaded.append({"sandbox": sandbox_path, "local": local_path})
+
+    print(f"[文件下载] 完成，共下载 {len(downloaded)} 个文件。")
+    return {"downloaded_paths": downloaded}

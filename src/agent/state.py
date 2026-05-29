@@ -15,3 +15,9 @@ class SandboxAgentState(MessagesState):
     # 意图分析节点的分析结果。
     # True 表示大模型需要写代码，必须拉起沙箱；False 表示只是普通聊天，无需沙箱。
     needs_sandbox: bool | None = None
+
+    # 用户提供的本地文件路径列表，需要在创建沙箱后上传到沙箱内。
+    input_files: list[str] = []
+
+    # 沙箱内处理完成后需要下载回本地的文件路径列表。
+    output_files: list[str] = []

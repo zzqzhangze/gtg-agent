@@ -1,6 +1,13 @@
 from langgraph.graph import END, START, StateGraph
 from src.agent.state import SandboxAgentState
-from src.agent.nodes import analyze_intent, create_sandbox, run_agent, cleanup_sandbox
+from src.agent.nodes import (
+    analyze_intent,
+    create_sandbox,
+    upload_files,
+    run_agent,
+    download_files,
+    cleanup_sandbox,
+)
 
 
 def route_after_analysis(state: SandboxAgentState) -> str:
@@ -21,7 +28,9 @@ def build_graph():
     # 2. 把所有的工作车间注册到流水线上
     builder.add_node("analyze_intent", analyze_intent)
     builder.add_node("create_sandbox", create_sandbox)
+    builder.add_node("upload_files", upload_files)
     builder.add_node("run_agent", run_agent)
+    builder.add_node("download_files", download_files)
     builder.add_node("cleanup_sandbox", cleanup_sandbox)
 
     # 3. 铺设传送带（Edges）
@@ -38,11 +47,17 @@ def build_graph():
         }
     )
 
-    # 如果去了沙箱车间，建好之后，下一站必定是交给大模型运行
-    builder.add_edge("create_sandbox", "run_agent")
+    # 如果去了沙箱车间，建好之后先上传用户文件
+    builder.add_edge("create_sandbox", "upload_files")
 
-    # ⚠️ 绝对安全防线：大模型不管跑没跑成功，下一站绝对是强制清理车间
-    builder.add_edge("run_agent", "cleanup_sandbox")
+    # 文件上传完，再交给大模型运行
+    builder.add_edge("upload_files", "run_agent")
+
+    # 大模型跑完，把结果文件下载回本地
+    builder.add_edge("run_agent", "download_files")
+
+    # ⚠️ 绝对安全防线：下载完成后强制清理沙箱
+    builder.add_edge("download_files", "cleanup_sandbox")
 
     # 清理完毕，任务抵达终点
     builder.add_edge("cleanup_sandbox", END)

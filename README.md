@@ -21,8 +21,6 @@
    cleanup_sandbox（强制销毁容器）
 ```
 
-> 详细模块说明见 [Agent.md](Agent.md)。
-
 ## 快速开始
 
 ### 依赖
@@ -92,25 +90,17 @@ API 端点：
 
 ```
 my_deep_agent/
-├── api.py                # FastAPI 服务入口
-├── main.py               # 命令行入口
-├── config.env            # 环境变量配置
-├── Agent.md              # 架构与开发原则
-├── pyproject.toml        # 项目配置与依赖
-├── uv.lock               # 锁定依赖版本
-└── src/
-    ├── sandbox/           # 沙箱接口层
-    │   ├── client.py      # 异步→同步桥接，LocalSandbox，SandboxClient
-    │   └── backend.py     # DeepAgents 协议适配器
-    └── agent/             # Agent 编排层
-        ├── state.py       # LangGraph 状态定义
-        ├── nodes.py       # 各处理节点
-        └── graph.py       # 图编排
+├── api.py              # FastAPI 服务入口（启动后调这个）
+├── main.py             # 命令行入口（本地测试用）
+├── config.env          # 环境变量配置（改模型、改端口在这里）
+├── Agent.md            # 开发者文档：开发原则与规范
+├── src/                # 核心代码
+│   ├── sandbox/        # 沙箱接口层
+│   └── agent/          # Agent 编排层
+└── docs/               # 备选方案、设计文档存档
 ```
 
-## 部署方案
-
-当前使用 **FastAPI 自建**方案。其他备选方案（LangServe、gRPC、WebSocket、K8s Operator）见 [`docs/deployment-alternatives.md`](docs/deployment-alternatives.md)。
+> 开发相关说明（核心概念、如何扩展）见 [Agent.md](Agent.md)。
 
 ## 许可
 

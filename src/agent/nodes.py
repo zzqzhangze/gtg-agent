@@ -193,7 +193,13 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
         agent = create_deep_agent(
             model=llm,
             backend=backend,
-            system_prompt="You are a helpful coding assistant with filesystem access via a sandbox.",
+            system_prompt=(
+                "You are a helpful coding assistant with filesystem access via a sandbox.\n\n"
+                "OUTPUT FILES:\n"
+                "- User's uploaded files are at /workspace/input/\n"
+                "- ALWAYS save all generated output files to /workspace/output/\n"
+                "- The system will automatically deliver /workspace/output/ files to the user"
+            ),
             checkpointer=MemorySaver(),  # 给它记忆功能
         )
 
@@ -282,10 +288,17 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
 
-    # 扫描沙箱工作目录，排除 input 目录（用户上传的文件）
-    print("[文件发现] 扫描沙箱 /workspace/ 查找新文件...")
+    # 多路径扫描：优先 agent 输出目录，兜底 /tmp /home /root
+    print("[文件发现] 扫描沙箱查找输出文件...")
     result = sb.run(
-        "find /workspace -type f ! -path '/workspace/input/*' 2>/dev/null || true",
+        "find /workspace/output /workspace /tmp /home /root "
+        "-type f "
+        "! -path '/workspace/input/*' "
+        "! -path '*/__pycache__/*' "
+        "! -name '*.pyc' "
+        "! -path '/tmp/pip-*' "
+        "! -path '/tmp/tmp*' "
+        "2>/dev/null || true",
         timeout=settings.sandbox_command_timeout_seconds,
     )
 
@@ -342,5 +355,10 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
 
         downloaded.append({"sandbox": sandbox_path, "local": local_path})
 
-    print(f"[文件下载] 完成，共下载 {len(downloaded)} 个文件。")
+    # 打印清晰的结果摘要，隐藏沙箱实现细节
+    print(f"\n{'=' * 48}")
+    print(f"  ✅ 处理完成，共 {len(downloaded)} 个文件已就绪：")
+    for d in downloaded:
+        print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']}")
+    print(f"{'=' * 48}\n")
     return {"downloaded_paths": downloaded}

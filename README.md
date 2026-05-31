@@ -1,6 +1,6 @@
 # My Deep Agent
 
-本地化的 AI 代码执行 Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入任意 LLM，Docker 沙箱安全隔离执行代码。
+AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Docker 沙箱安全隔离执行任务。
 
 ## 架构
 
@@ -19,7 +19,9 @@
                          │
                    detect_output_files（自动扫描沙箱发现新文件）
                          │
-                   download_files（从沙箱下载结果文件）
+                   analyze_output_files（智能分析：预览+价值判断+摘要）
+                         │
+                   download_files（从沙箱下载结果文件，仅高价值文件）
                          │
                    cleanup_sandbox（强制销毁容器）
 ```

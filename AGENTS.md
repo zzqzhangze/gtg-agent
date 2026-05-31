@@ -47,6 +47,7 @@
 | **Edge** | `src/agent/graph.py` — 节点连线 |
 | **Sandbox** | `src/sandbox/` — Docker 隔离执行环境 |
 | **Config** | `src/config.py` — 环境变量集中读取 |
+| **分支工作流** | `.sisyphus/workflows/branch-management.md` — 分支管理规范 |
 
 ## 优先级
 

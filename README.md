@@ -5,30 +5,27 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
 ## 架构
 
 ```
-用户输入 → analyze_intent（LLM 驱动意图分析）
-               │               
-          ┌─────┴──────────┬──────────┐
-          │ chat/compute   │code_exec │ data_analysis/multi_step
-          │ (无需沙箱)     │          │
-          ▼                ▼          ▼
-   run_agent         create_sandbox（动态选择模板）
-   （直接 LLM 回复）      │
-                   upload_files（上传用户文件到沙箱）
-                         │
-                   run_agent（DeepAgent 在沙箱内写代码+执行）
-                         │
-                   detect_output_files（自动扫描沙箱发现新文件）
-                         │
-                   analyze_output_files（智能分析：预览+价值判断+摘要）
-                         │
-                   download_files（从沙箱下载结果文件，仅高价值文件）
-                         │
-                   cleanup_sandbox（强制销毁容器）
+用户输入 ──→ Web UI (浏览器) ──→ FastAPI /chat ──→ LangGraph Pipeline
+                                                      │
+                 ┌────────────────────────────────────┼────────────────────┐
+                 ▼ chat/compute                    ▼ code_exec           ▼ data_analysis
+            run_agent (直接 LLM)          create_sandbox (动态选择模板)      / multi_step
+                                                 │
+                                           upload_files
+                                                 │
+                                           run_agent (DeepAgent)
+                                                 │
+                                           detect_output_files
+                                                 │
+                                           analyze_output_files
+                                                 │
+                                           download_files → 浏览器下载
+                                                 │
+                                           cleanup_sandbox
 ```
 
-> 意图分析不再依赖关键词匹配，改为 LLM 分类，支持五种任务类型：
-> `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
-> 沙箱模板根据 `data_analysis` 等类型动态选择，而非固定使用 `python-sandbox`。
+> 意图分析使用 LLM 分类，支持 `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
+> 沙箱模板根据任务类型动态选择。Web UI 通过 `GET /` 访问。
 
 ## 快速开始
 
@@ -94,9 +91,12 @@ REPL 模式下支持以下命令：
 uv add fastapi uvicorn python-multipart
 
 # 启动服务
-uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 
-# 调用
+# 方案 A：浏览器打开 Web UI
+open http://localhost:8000
+
+# 方案 B：命令行调用（返回 JSON）
 curl -X POST http://localhost:8000/chat \
   -F "message=读取并分析这个 CSV" \
   -F "files@=data.csv"
@@ -106,17 +106,22 @@ API 端点：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| GET | `/` | Web 聊天界面（浏览器打开） |
 | POST | `/chat` | 发送消息 + 上传文件（multipart/form-data） |
 | GET | `/files/{session_id}/{filename}` | 下载处理后的文件 |
 | GET | `/health` | 健康检查 |
-| GET | `/` | API 信息 |
+| GET | `/api-info` | API 信息（旧根路由） |
 
 ## 项目结构
 
 ```
 my_deep_agent/
-├── api.py              # FastAPI 服务入口
+├── api.py              # FastAPI 服务入口（含 Web UI 静态文件服务）
 ├── main.py             # 命令行入口
+├── static/             # Web UI 前端文件
+│   ├── index.html      # 聊天界面 HTML
+│   ├── style.css       # 样式 + 暗色模式
+│   └── app.js          # 交互逻辑
 ├── pyproject.toml      # 项目元数据与依赖声明
 ├── uv.lock             # uv 依赖锁定文件
 ├── .python-version     # Python 版本声明

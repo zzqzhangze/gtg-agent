@@ -28,6 +28,40 @@
 4. README.md  → 更新架构图和流程说明
 ```
 
+## 计划管理规范
+
+计划（`.sisyphus/plans/*.md`）不是静态文档，是**活的管理工具**。必须遵守：
+
+### 创建新计划时
+
+1. 写入 `.sisyphus/plans/<name>.md`
+2. **立即在 `INDEX.md`（中央注册表）中注册**，包含状态和分支名
+
+### 实施过程中
+
+每条完成一个步骤，**立即**同步更新计划文件：
+- `- [ ]` → `- [x]`
+- 头部 `updated:` 日期
+- `INDEX.md` 中同步状态（如 `进行中` → `v1 完成，待合并`）
+
+### 状态变更触发
+
+| 事件 | 必须更新 |
+|------|---------|
+| 新开分支 | `INDEX.md` 加一行 + 写分支名 |
+| 步骤完成 | plan 文件 checkbox |
+| 方向完成 | `INDEX.md` 状态 + 主计划 `updated` |
+| 合并到 master | `INDEX.md` ✅ + 删除分支字段 |
+
+### 计划文件头格式（必须包含）
+
+```markdown
+> status: [draft / in_progress / completed (vN)]
+> branch: feat/<name>
+> created: YYYY-MM-DD
+> updated: YYYY-MM-DD
+```
+
 ## 验证标准
 
 任务未完成，直到以下检查全部通过：
@@ -48,6 +82,8 @@
 | **Sandbox** | `src/sandbox/` — Docker 隔离执行环境 |
 | **Config** | `src/config.py` — 环境变量集中读取 |
 | **分支工作流** | `.sisyphus/workflows/branch-management.md` — 分支管理规范 |
+| **计划** | `.sisyphus/plans/` — 活计划，持续同步实施进度 |
+| **计划注册表** | `.sisyphus/plans/INDEX.md` — 所有计划的集中索引 |
 
 ## 优先级
 

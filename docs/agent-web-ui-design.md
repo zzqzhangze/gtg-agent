@@ -3,6 +3,7 @@
 > status: draft
 > created: 2026-05-31
 > branch: feat/web-ui
+>
 > 对应 plan: `.sisyphus/plans/agent-intelligence-upgrade.md` — 支线任务（前端可视化交互）
 
 ---

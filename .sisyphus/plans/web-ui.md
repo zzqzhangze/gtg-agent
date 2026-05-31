@@ -5,7 +5,10 @@
 > created: 2026-05-31
 > updated: 2026-05-31
 >
+> 注册：`.sisyphus/plans/INDEX.md`
+>
 > **Sub-plan of:** `.sisyphus/plans/agent-intelligence-upgrade.md`
+>
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > 该计划随 agent 主计划同步更新，前端界面需反映 agent 当前能力。

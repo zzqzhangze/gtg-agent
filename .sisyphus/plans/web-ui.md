@@ -1,6 +1,9 @@
 # Web UI Implementation Plan
 
+> **Sub-plan of:** `.sisyphus/plans/agent-intelligence-upgrade.md`
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> 该计划随 agent 主计划同步更新，前端界面需反映 agent 当前能力。
 
 **Goal:** Add a browser-based chat interface to My Deep Agent, served by the existing FastAPI backend.
 
@@ -360,3 +363,11 @@ After all tasks are done:
 - [ ] Browser: New session button clears chat
 - [ ] Browser: Session persists across page refresh (same session_id)
 - [ ] Browser: Error state shows appropriate message for network failure
+
+## 后续维护指南
+
+> 当 agent-intelligence-upgrade.md 中的方向有变更时，同步检查：
+> - 新增状态字段 → 前端是否需展示？
+> - 新增节点 → 前端是否需可视化？
+> - 新增文件类型 → 前端下载链接是否需要适配？
+> - 后端 API 接口变更 → 前端 fetch 路径是否需更新？

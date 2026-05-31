@@ -336,6 +336,10 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
 第四优先（规模化）：
   方向四 + 方向六 + 方向七
   → 记忆、模板、资源管理
+
+支线：前端 Web UI
+  → 关联计划：`.sisyphus/plans/web-ui.md`
+  → 提供浏览器端聊天界面，随 agent 迭代同步更新
 ```
 
 ---
@@ -355,4 +359,8 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
 | `api.py` | (待查) | API 入口 |
 | `AGENTS.md` | (已有) | AI 行为约束 |
 | `README.md` | (已有) | 项目文档 |
+| `static/index.html` | (新增) | Web UI 页面骨架 |
+| `static/style.css` | (新增) | Web UI 样式 + 暗色模式 |
+| `static/app.js` | (新增) | Web UI 交互逻辑 |
+| `.sisyphus/plans/web-ui.md` | (新增) | Web UI 实施计划 |
 | `.sisyphus/workflows/branch-management.md` | (新增) | 分支管理工作流标准 |

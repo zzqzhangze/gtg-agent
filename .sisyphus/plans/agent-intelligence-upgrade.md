@@ -3,7 +3,7 @@
 > status: approved
 > priority: P0
 > created: 2026-05-29
-> updated: 2026-05-29 (方向一已完成)
+> updated: 2026-05-31 (方向一已完成, 方向五已合并)
 >
 > 目标：将当前"确定性流水线"架构升级为"自适应智能体循环"
 
@@ -165,9 +165,11 @@ config = {"configurable": {"thread_id": "interactive-session"}}  # 固定 ID
 
 ---
 
-## 方向五：智能文件处理
+## 方向五：智能文件处理 ✅
 
-### 现状
+> 状态：**已完成**（2026-05-31 合并至 `feat/file-discovery` 分支）
+
+### 现状（改造前）
 
 ```mermaid
 flowchart LR
@@ -220,7 +222,7 @@ flowchart LR
 
 **阶段 B（智能分析 — 原方向五内容）：**
 
-4. `detect_output_files` 返回结构化结果：`[{path, size, type, preview?, summary?}]`
+4. `detect_output_files` 返回结构化结果：`[{path, mime_type}]`
 5. 新增 `analyze_output_files` 节点，用 LLM 判断每个文件的价值
 6. 高价值文件自动下载 + 生成摘要；低价值文件仅列路径
 
@@ -230,9 +232,26 @@ flowchart LR
 - `src/agent/nodes.py` — `run_agent` 改 system_prompt + `detect_output_files` 改扫描路径 + `download_files` 增加结果摘要
 
 **阶段 B：**
-- `src/agent/nodes.py` — 重写 `detect_output_files` 返回结构化结果 + 新增 `analyze_output_files`
-- `src/agent/state.py` — 扩展 output_files 结构
-- `src/agent/graph.py` — 加新节点和边
+- `src/agent/nodes.py` — 重写 `detect_output_files` 返回结构化结果 + 新增 `_detect_mime_type`/`_generate_preview`/`_get_file_size` 辅助函数 + 新增 `analyze_output_files` 节点 + `_ANALYZE_FILES_PROMPT` 意图感知提示 + `download_files` 仅下载高价值文件
+- `src/agent/state.py` — 新增 `OutputFile` TypedDict；`output_files` 类型改为 `list[OutputFile]`
+- `src/agent/graph.py` — 注册新节点 + 连线 `detect_output_files → analyze_output_files → download_files`
+- `README.md` — 架构图更新新增 `analyze_output_files` 节点
+
+### 提交历史
+
+```
+24697ad feat: add intelligent output file analysis with user-intent-aware value judgment
+21251bc fix: update output_files type annotation to match structured data
+16db3e0 fix: restrict detect_output_files to /workspace/output/ only
+b1a917e feat: broaden file discovery and add agent output guidance
+```
+
+### 实现要点
+
+- `_detect_mime_type()`: 基于文件扩展名和`file`命令混合判断 MIME 类型
+- `_generate_preview()`: 每类 MIME 有不同预览策略 — 文本前 5 行、log 统计 error/warning、HTML 提取 title、图片标记尺寸、二进制仅显示类型和大小
+- `_ANALYZE_FILES_PROMPT`: 使用 `{user_request}` + `{task_type}` + `{file_details}` 三个占位符，让 LLM 基于用户实际需求判断文件价值，而非简单按文件类型（如：用户要冒泡排序脚本 → `bubble_sort.py` 标记为高价值）
+- LLM 调用失败时自动降级：全部文件默认高价值，确保不遗漏
 
 ---
 

@@ -65,27 +65,73 @@ def _parse_intent_json(content: str) -> dict[str, Any] | None:
 
 # ── 文件分析辅助函数 ──────────────────────────────────────────────────
 _MIME_TYPE_MAP: dict[str, str] = {
+    # data
     ".csv": "csv",
     ".xlsx": "xlsx",
     ".xls": "xls",
     ".json": "json",
     ".xml": "xml",
-    ".pdf": "pdf",
+    # images
     ".png": "png",
     ".jpg": "jpg",
     ".jpeg": "jpeg",
     ".gif": "gif",
     ".svg": "svg",
     ".webp": "webp",
-    ".html": "html",
-    ".htm": "html",
+    # documents
+    ".pdf": "pdf",
     ".md": "md",
     ".txt": "txt",
     ".log": "log",
+    ".html": "html",
+    ".htm": "html",
+    # archives
     ".zip": "zip",
     ".gz": "gz",
+    ".tar": "tar",
+    ".gz2": "bz2",
+    # code — Python
     ".py": "py",
     ".ipynb": "ipynb",
+    ".pyx": "pyx",
+    ".pyi": "pyi",
+    # code — JavaScript / TypeScript / Web
+    ".js": "js",
+    ".jsx": "jsx",
+    ".ts": "ts",
+    ".tsx": "tsx",
+    ".css": "css",
+    ".scss": "scss",
+    ".less": "less",
+    ".vue": "vue",
+    ".svelte": "svelte",
+    # code — Shell / Config
+    ".sh": "sh",
+    ".bash": "bash",
+    ".zsh": "zsh",
+    ".yaml": "yaml",
+    ".yml": "yml",
+    ".toml": "toml",
+    ".ini": "ini",
+    ".cfg": "cfg",
+    ".env": "env",
+    ".dockerfile": "dockerfile",
+    # code — Go / Rust / Java / C++
+    ".go": "go",
+    ".rs": "rs",
+    ".java": "java",
+    ".kt": "kt",
+    ".rb": "rb",
+    ".php": "php",
+    ".swift": "swift",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".h": "h",
+    ".hpp": "hpp",
+    # code — other
+    ".r": "r",
+    ".sql": "sql",
+    ".lua": "lua",
 }
 
 
@@ -97,13 +143,39 @@ def _detect_mime_type(path: str) -> str:
 def _generate_preview(sb, path: str, mime_type: str) -> str | None:
     """根据文件类型生成轻量文本预览（不读取大文件进 LLM）。"""
     try:
-        text_types = {"csv", "json", "txt", "md", "py", "ipynb", "xml"}
-        if mime_type in text_types:
+        # 代码文件类型（需要更详细的预览）
+        code_types = {
+            "py", "ipynb", "pyx", "pyi",
+            "js", "jsx", "ts", "tsx", "css", "scss", "less", "vue", "svelte",
+            "sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "cfg", "env", "dockerfile",
+            "go", "rs", "java", "kt", "rb", "php", "swift", "c", "cpp", "h", "hpp",
+            "r", "sql", "lua",
+        }
+        text_types = {"csv", "json", "txt", "md", "xml", "log", "html"}
+
+        if mime_type in text_types or mime_type in code_types:
             content = sb.read(path).decode("utf-8", errors="replace")
             lines = content.splitlines()
-            preview = "\n".join(lines[:5])
-            if len(lines) > 5:
-                preview += f"\n... ({len(lines) - 5} more lines)"
+            total = len(lines)
+
+            if mime_type in code_types and total > 10:
+                # 代码文件：展示前 25 行 + 结构概要
+                show_lines = min(total, 25)
+                preview = "\n".join(lines[:show_lines])
+                if total > show_lines:
+                    preview += f"\n... ({total - show_lines} more lines)"
+
+                # 提取结构信息帮助 LLM 判断
+                func_count = sum(1 for l in lines if l.strip().startswith(("def ", "class ", "async def ", "fn ", "func ", "function ")))
+                preview += f"\n\n[File: {total} lines, {func_count} function(s)/class(es)]"
+            else:
+                # 纯文本/数据：展示前 10 行
+                show_lines = min(total, 10)
+                preview = "\n".join(lines[:show_lines])
+                if total > show_lines:
+                    preview += f"\n... ({total - show_lines} more lines)"
+                preview += f"\n\n[File: {total} lines total]"
+
             return preview
 
         if mime_type == "log":
@@ -144,6 +216,12 @@ _ANALYZE_FILES_PROMPT = """You are a file analysis assistant. Below is the user'
 --- Files Produced by AI ---
 {file_details}
 
+TASK TYPE SPECIFIC RULES:
+- code_exec: Generated code files (.py, .js, .html, etc.) are HIGH value — they ARE the output the user asked for. Logs, temp files, and cache are LOW.
+- data_analysis: Result files (charts, CSVs, reports, analysis notebooks) are HIGH value. Intermediate analysis scripts are LOW.
+- multi_step: ALL generated files are HIGH value — complex projects produce multiple deliverables.
+- chat/compute: Low value unless a file clearly represents a tangible deliverable.
+
 For each file, decide:
 1. **value**: "high" if this file IS what the user asked for, or is a key deliverable that directly satisfies the request. "low" if it's an intermediate/working artifact (temp script the user did NOT ask for, cache, config, log of intermediate steps).
 2. **summary**: One-sentence Chinese description of what this file contains and why it matters (or why it's low value).
@@ -153,6 +231,37 @@ CRITICAL: Judge by INTENT, not by file extension. If the user asked for a Python
 Respond in this exact JSON format (NO markdown code fences, pure JSON only):
 {{"files": [{{"path": "...", "value": "high|low", "summary": "..."}}]}}
 """
+
+
+# ── 文件类型分类（用于预判价值） ─────────────────────────────────────
+_CODE_EXTENSIONS = {
+    "py", "ipynb", "pyx", "pyi",
+    "js", "jsx", "ts", "tsx", "css", "scss", "less", "vue", "svelte",
+    "sh", "bash", "zsh", "yaml", "yml", "toml", "ini", "cfg", "env", "dockerfile",
+    "go", "rs", "java", "kt", "rb", "php", "swift", "c", "cpp", "h", "hpp",
+    "r", "sql", "lua",
+}
+_DATA_EXTENSIONS = {"csv", "json", "xml", "xlsx", "xls"}
+_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
+_DOC_EXTENSIONS = {"md", "txt", "html", "log"}
+_ARCHIVE_EXTENSIONS = {"zip", "gz", "tar", "bz2"}
+
+
+def _classify_file_type(mime_type: str) -> str:
+    """将 mime_type 归类为: code / data / image / doc / archive / binary / unknown"""
+    if mime_type in _CODE_EXTENSIONS:
+        return "code"
+    if mime_type in _DATA_EXTENSIONS:
+        return "data"
+    if mime_type in _IMAGE_EXTENSIONS:
+        return "image"
+    if mime_type in _DOC_EXTENSIONS:
+        return "doc"
+    if mime_type in _ARCHIVE_EXTENSIONS:
+        return "archive"
+    if mime_type == "pdf":
+        return "binary"
+    return "unknown"
 
 
 def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
@@ -445,6 +554,38 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
         if preview:
             preview_lines.append(f"Preview:\n{preview}")
         preview_lines.append("")
+
+    # 预分类：按 task_type + 文件类型设定默认价值
+    task_type = state.get("task_type", "unknown")
+    for f in output_files:
+        ext_type = _classify_file_type(f["mime_type"])
+        if task_type == "code_exec":
+            # code_exec：代码文件就是交付物
+            if ext_type in ("code", "data", "image"):
+                f["value"] = "high"
+                f["summary"] = "生成的代码/数据文件，是本次任务的直接产出"
+            elif ext_type == "doc":
+                f["value"] = "low"
+                f["summary"] = "日志/文档文件，非最终交付物"
+            else:
+                f["value"] = "high"  # 保险：unknown 默认下载
+                f["summary"] = "任务产出文件"
+        elif task_type == "data_analysis":
+            # data_analysis：数据/图表/报告是高价值，脚本是中间产物
+            if ext_type in ("data", "image", "doc"):
+                f["value"] = "high"
+                f["summary"] = "分析结果文件"
+            else:
+                f["value"] = "low"
+                f["summary"] = "中间分析脚本，结果在数据/报告中"
+        elif task_type == "multi_step":
+            # multi_step：所有文件都是交付物
+            f["value"] = "high"
+            f["summary"] = "多步骤任务的产出文件"
+        else:
+            # chat/compute：默认安全处理
+            f["value"] = "high"
+            f["summary"] = "文件产出"
 
     # 提取用户意图，让 LLM 按需求而非文件类型做判断
     messages = state.get("messages", [])

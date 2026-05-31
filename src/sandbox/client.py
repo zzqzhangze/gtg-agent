@@ -9,6 +9,32 @@ from opensandbox.models.execd import RunCommandOpts
 from src.config import settings
 
 # =========================================================================
+# 【模板注册表：模板名 → 沙箱环境配置】
+# 每个模板定义使用的 Docker 镜像、入口命令和环境变量。
+# 新加模板只需在此添加一条记录，无需修改 create_sandbox 逻辑。
+# =========================================================================
+_TEMPLATE_REGISTRY: dict[str, dict[str, Any]] = {
+    "python-sandbox": {
+        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
+        "env": {"PYTHON_VERSION": "3.11"},
+    },
+    "data-analysis": {
+        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
+        "env": {"PYTHON_VERSION": "3.11"},
+        # TODO: 替换为专用数据分析镜像（预装 pandas/numpy/matplotlib）
+    },
+    "node-sandbox": {
+        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
+        "env": {"PYTHON_VERSION": "3.11"},
+        # TODO: 替换为专用 Node.js 镜像（预装 node/npm）
+    },
+}
+_TEMPLATE_FALLBACK = "python-sandbox"
+
+# =========================================================================
 # 【黑科技区：后台常驻事件循环】
 # 解决的痛点：LangGraph 是同步执行的，但 Sandbox SDK 是异步的。
 # 方案：我们在后台偷偷开一个永远不关的线程，专门用来跑异步网络请求，防止 HTTP 客户端断连。
@@ -132,22 +158,28 @@ class SandboxClient:
             request_timeout=timedelta(seconds=settings.sandbox_request_timeout_seconds),
         )
 
-    def get_template(self, name: str):
-        return True
+    def get_template(self, name: str) -> dict[str, Any] | None:
+        """查询模板配置，不存在返回 None。"""
+        return _TEMPLATE_REGISTRY.get(name)
 
-    def create_template(self, name: str, image: str):
-        pass
+    def list_templates(self) -> list[str]:
+        """返回所有已注册模板名。"""
+        return list(_TEMPLATE_REGISTRY.keys())
 
     def create_sandbox(self, template_name: str, timeout: int) -> LocalSandbox:
         sb_name = f"wsl-sandbox-{uuid.uuid4().hex[:6]}"
         print(f"\n[生命周期] 🚀 正在初始化容器: {sb_name}")
 
+        # 查注册表，未知模板名静默回退到兜底
+        config = _TEMPLATE_REGISTRY.get(template_name) or _TEMPLATE_REGISTRY[_TEMPLATE_FALLBACK]
+        print(f"   └─ 模板: {template_name or _TEMPLATE_FALLBACK} → 镜像: {config['image'].split('/')[-1]}")
+
         async def _create():
             return await Sandbox.create(
-                "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+                config["image"],
                 connection_config=self.config,
-                entrypoint=["/opt/opensandbox/code-interpreter.sh"],
-                env={"PYTHON_VERSION": "3.11"},
+                entrypoint=config.get("entrypoint"),
+                env=config.get("env"),
                 timeout=timedelta(seconds=timeout),
             )
 

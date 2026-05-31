@@ -1,4 +1,16 @@
+from typing import TypedDict
+
 from langgraph.graph.message import MessagesState
+
+
+class OutputFile(TypedDict, total=False):
+    """沙箱输出文件的结构化信息。"""
+    path: str          # 文件在沙箱内的绝对路径
+    mime_type: str     # MIME 类型（如 text/plain, image/png, application/pdf）
+    size: int          # 文件大小（字节）
+    preview: str       # 预览内容（文本预览/截取/摘要）
+    value: str         # LLM 价值判断: "high" | "low"
+    summary: str       # 中文摘要（给用户看）
 
 
 # 继承 MessagesState 后，账本天生自带一个 "messages" 列表，用来自动保存聊天记录
@@ -31,5 +43,7 @@ class SandboxAgentState(MessagesState):
     # 用户提供的本地文件路径列表，需要在创建沙箱后上传到沙箱内。
     input_files: list[str] = []
 
-    # 沙箱内处理完成后需要下载回本地的文件路径列表。
-    output_files: list[str] = []
+    # 沙箱内处理完成后需要下载回本地的文件信息列表。
+    # detect_output_files 写入 [{path, mime_type}]，
+    # analyze_output_files 补充 {size, preview, value, summary}。
+    output_files: list[OutputFile] = []

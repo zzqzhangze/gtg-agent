@@ -288,17 +288,18 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
 
-    # 多路径扫描：优先 agent 输出目录，兜底 /tmp /home /root
+    # 只扫 agent 输出目录（system_prompt 已告知 agent 存到 /workspace/output/）
+    # 附加扫 workspace 根目录（非递归，仅常见输出格式，防 agent 未遵循指引）
     print("[文件发现] 扫描沙箱查找输出文件...")
     result = sb.run(
-        "find /workspace/output /workspace /tmp /home /root "
-        "-type f "
-        "! -path '/workspace/input/*' "
-        "! -path '*/__pycache__/*' "
-        "! -name '*.pyc' "
-        "! -path '/tmp/pip-*' "
-        "! -path '/tmp/tmp*' "
-        "2>/dev/null || true",
+        "find /workspace/output -type f 2>/dev/null; "
+        "find /workspace -maxdepth 1 -type f "
+        "\\( -name '*.csv' -o -name '*.json' -o -name '*.pdf' "
+        "-o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' "
+        "-o -name '*.html' -o -name '*.xlsx' -o -name '*.xls' "
+        "-o -name '*.md' -o -name '*.txt' -o -name '*.zip' "
+        "-o -name '*.svg' -o -name '*.gif' -o -name '*.log' "
+        "\\) ! -path '/workspace/input/*' 2>/dev/null || true",
         timeout=settings.sandbox_command_timeout_seconds,
     )
 

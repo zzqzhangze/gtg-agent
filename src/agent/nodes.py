@@ -1,7 +1,9 @@
+import base64
 import json
 import os
 from typing import Any
 from deepagents import create_deep_agent
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from src.config import settings
@@ -61,6 +63,98 @@ def _parse_intent_json(content: str) -> dict[str, Any] | None:
         return None
 
 
+# ── 文件分析辅助函数 ──────────────────────────────────────────────────
+_MIME_TYPE_MAP: dict[str, str] = {
+    ".csv": "csv",
+    ".xlsx": "xlsx",
+    ".xls": "xls",
+    ".json": "json",
+    ".xml": "xml",
+    ".pdf": "pdf",
+    ".png": "png",
+    ".jpg": "jpg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+    ".svg": "svg",
+    ".webp": "webp",
+    ".html": "html",
+    ".htm": "html",
+    ".md": "md",
+    ".txt": "txt",
+    ".log": "log",
+    ".zip": "zip",
+    ".gz": "gz",
+    ".py": "py",
+    ".ipynb": "ipynb",
+}
+
+
+def _detect_mime_type(path: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+    return _MIME_TYPE_MAP.get(ext, "unknown")
+
+
+def _generate_preview(sb, path: str, mime_type: str) -> str | None:
+    """根据文件类型生成轻量文本预览（不读取大文件进 LLM）。"""
+    try:
+        text_types = {"csv", "json", "txt", "md", "py", "ipynb", "xml"}
+        if mime_type in text_types:
+            content = sb.read(path).decode("utf-8", errors="replace")
+            lines = content.splitlines()
+            preview = "\n".join(lines[:5])
+            if len(lines) > 5:
+                preview += f"\n... ({len(lines) - 5} more lines)"
+            return preview
+
+        if mime_type == "log":
+            total = sb.run(f"wc -l < '{path}'", timeout=5).stdout.strip()
+            errors = sb.run(f"grep -i -c error '{path}'", timeout=5).stdout.strip()
+            warns = sb.run(f"grep -i -c warning '{path}'", timeout=5).stdout.strip()
+            return f"Lines: {total}, Errors: {errors}, Warnings: {warns}"
+
+        if mime_type == "html":
+            title = sb.run(
+                f"head -100 '{path}' | grep -o '<title>[^<]*</title>'",
+                timeout=5,
+            ).stdout.strip()
+            return title or "[No title tag found]"
+
+        if mime_type in ("png", "jpg", "jpeg", "gif"):
+            raw = sb.read(path)
+            b64 = base64.b64encode(raw).decode()
+            # 只放前 200 chars 作为预览标记，不塞整个 base64 进 LLM
+            return f"[Image: {mime_type.upper()}, {len(raw)} bytes, base64:{b64[:80]}...]"
+
+        if mime_type in ("xlsx", "xls", "pdf", "zip"):
+            return f"[Binary file: {mime_type.upper()}, cannot preview text]"
+
+        return None
+    except Exception as e:
+        return f"[preview error: {e}]"
+
+
+_ANALYZE_FILES_PROMPT = """You are a file analysis assistant. Below is the user's original request and the task type determined by intent analysis.
+
+--- User Request ---
+{user_request}
+
+--- Task Type ---
+{task_type}
+
+--- Files Produced by AI ---
+{file_details}
+
+For each file, decide:
+1. **value**: "high" if this file IS what the user asked for, or is a key deliverable that directly satisfies the request. "low" if it's an intermediate/working artifact (temp script the user did NOT ask for, cache, config, log of intermediate steps).
+2. **summary**: One-sentence Chinese description of what this file contains and why it matters (or why it's low value).
+
+CRITICAL: Judge by INTENT, not by file extension. If the user asked for a Python script, a .py file IS high value. If they asked for data analysis, the report/CSV/chart IS high value. Always ask: "Does this file deliver what the user specifically asked for?"
+
+Respond in this exact JSON format (NO markdown code fences, pure JSON only):
+{{"files": [{{"path": "...", "value": "high|low", "summary": "..."}}]}}
+"""
+
+
 def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
     """
     【车间 1：意图分析】
@@ -82,8 +176,6 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
             model=settings.model_name,
             temperature=0.1,
         )
-
-        from langchain_core.messages import HumanMessage, SystemMessage
 
         response = llm.invoke([
             SystemMessage(content=_INTENT_SYSTEM_PROMPT),
@@ -277,9 +369,7 @@ def upload_files(state: SandboxAgentState) -> dict[str, Any]:
 def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     """
     【车间 6：自动发现沙箱输出文件】
-    作用：DeepAgent 在沙箱内执行完代码后，自动扫描 /workspace/ 下新产生的文件
-          （排除用户上传的 /workspace/input/ 目录），填充 state.output_files。
-    这样智能体不需要特意声明它创建了哪些文件——框架自己感知。
+    作用：扫描沙箱输出目录，识别每个文件的路径和类型，返回结构化列表。
     """
     if not state.get("sandbox_id"):
         print("[文件发现] 没有可用沙箱，跳过。")
@@ -307,26 +397,120 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
         print(f"[文件发现] 扫描失败 (exit={result.exit_code}): {result.stderr}")
         return {"output_files": []}
 
-    # 解析输出：每行一个文件路径
-    files = [line.strip() for line in result.stdout.split("\n") if line.strip()]
-    if not files:
+    # 解析输出，构建结构化结果
+    raw_paths = [line.strip() for line in result.stdout.split("\n") if line.strip()]
+    if not raw_paths:
         print("[文件发现] 未发现新文件。")
         return {"output_files": []}
 
+    files = []
+    for path in raw_paths:
+        files.append({
+            "path": path,
+            "mime_type": _detect_mime_type(path),
+        })
+
     print(f"[文件发现] 发现 {len(files)} 个文件:")
     for f in files:
-        print(f"  - {f}")
+        print(f"  - {f['path']} ({f['mime_type']})")
 
     return {"output_files": files}
 
 
+def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 7：智能分析输出文件】
+    作用：读取每个文件的预览，用 LLM 判断价值并生成中文摘要。
+    高价值文件标记后由 download_files 下载，低价值仅列路径。
+    """
+    output_files: list[dict[str, Any]] = state.get("output_files", [])
+    if not output_files or not state.get("sandbox_id"):
+        return {}
+
+    client = SandboxClient()
+    sb = client.get_sandbox(name=state["sandbox_id"])
+
+    # 为每个文件生成预览
+    print("[文件分析] 正在分析输出文件...")
+    preview_lines = []
+    for f in output_files:
+        f["size"] = _get_file_size(sb, f["path"]) if "size" not in f else f["size"]
+        preview = _generate_preview(sb, f["path"], f["mime_type"])
+        if preview:
+            f["preview"] = preview
+        name = os.path.basename(f["path"])
+        preview_lines.append(
+            f"File: {name} | type={f['mime_type']} | size={f.get('size', '?')}B"
+        )
+        if preview:
+            preview_lines.append(f"Preview:\n{preview}")
+        preview_lines.append("")
+
+    # 提取用户意图，让 LLM 按需求而非文件类型做判断
+    messages = state.get("messages", [])
+    user_request = messages[-1].content if messages else "(unknown)"
+    task_type = state.get("task_type", "unknown")
+    file_details = "\n".join(preview_lines)
+
+    prompt = _ANALYZE_FILES_PROMPT.format(
+        user_request=user_request,
+        task_type=task_type,
+        file_details=file_details,
+    )
+
+    # 构造 LLM 请求
+    try:
+        llm = ChatOpenAIWithReasoning(
+            base_url=settings.openai_api_base,
+            api_key=settings.openai_api_key,
+            model=settings.model_name,
+            temperature=0.1,
+        )
+        response = llm.invoke([HumanMessage(content=prompt)])
+
+        result = _parse_intent_json(response.content)
+        print(f"[文件分析] LLM 判断: {result}")
+        if result and "files" in result:
+            llm_judgments = {f["path"]: f for f in result["files"]}
+            for f in output_files:
+                judgement = llm_judgments.get(f["path"])
+                if judgement:
+                    f["value"] = judgement.get("value", "high")
+                    f["summary"] = judgement.get("summary", "")
+
+    except Exception as e:
+        print(f"[文件分析] ⚠️ LLM 分析失败 ({type(e).__name__})，全部文件默认下载")
+        for f in output_files:
+            f.setdefault("value", "high")
+            f.setdefault("summary", "")
+
+    # 打印分析结果
+    high_count = sum(1 for f in output_files if f.get("value") == "high")
+    low_count = sum(1 for f in output_files if f.get("value") != "high")
+    print(f"[文件分析] 完成: {high_count} 个高价值, {low_count} 个低价值")
+    for f in output_files:
+        tag = "📦" if f.get("value") == "high" else "🗑️"
+        print(f"  {tag} {os.path.basename(f['path'])} — {f.get('summary', '')}")
+
+    return {"output_files": output_files}
+
+
+def _get_file_size(sb, path: str) -> int:
+    """获取沙箱内文件大小（字节）。"""
+    try:
+        r = sb.run(f"stat -c '%s' '{path}' 2>/dev/null || echo 0", timeout=5)
+        return int(r.stdout.strip() or 0)
+    except Exception:
+        return 0
+
+
 def download_files(state: SandboxAgentState) -> dict[str, Any]:
     """
-    【车间 6：文件下载】
-    作用：将沙箱内 output_files 指定的文件下载到本地 downloads/ 目录。
+    【车间 8：文件下载】
+    作用：只下载高价值文件到本地 downloads/ 目录，低价值仅打印路径。
     返回：记录下载结果到 downloaded_paths 字段。
     """
-    output_files = state.get("output_files", [])
+    output_files: list[dict[str, Any]] = state.get("output_files", [])
     if not output_files:
         print("[文件下载] 没有需要下载的文件，跳过。")
         return {"downloaded_paths": []}
@@ -342,24 +526,47 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     download_dir = os.path.join(os.getcwd(), "downloads")
     os.makedirs(download_dir, exist_ok=True)
 
+    high_value = [f for f in output_files if f.get("value") == "high"]
+    low_value = [f for f in output_files if f.get("value") != "high"]
+
     downloaded = []
-    for sandbox_path in output_files:
+    for f in high_value:
+        sandbox_path = f["path"]
         basename = os.path.basename(sandbox_path)
         local_path = os.path.join(download_dir, basename)
 
-        print(f"[文件下载] 沙箱:{sandbox_path} → {local_path}")
-
+        print(f"[文件下载] 📦 {basename} → {local_path}")
         content = sb.read(sandbox_path)
 
-        with open(local_path, "wb") as f:
-            f.write(content)
+        # 文件名去重：如果已存在，加数字后缀
+        counter = 1
+        orig = local_path
+        while os.path.exists(local_path):
+            name, ext = os.path.splitext(orig)
+            local_path = f"{name}_{counter}{ext}"
+            counter += 1
 
-        downloaded.append({"sandbox": sandbox_path, "local": local_path})
+        with open(local_path, "wb") as f_out:
+            f_out.write(content)
 
-    # 打印清晰的结果摘要，隐藏沙箱实现细节
+        downloaded.append({
+            "sandbox": sandbox_path,
+            "local": local_path,
+            "summary": f.get("summary", ""),
+        })
+
+    # 打印结果摘要
     print(f"\n{'=' * 48}")
-    print(f"  ✅ 处理完成，共 {len(downloaded)} 个文件已就绪：")
-    for d in downloaded:
-        print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']}")
+    if downloaded:
+        print(f"  ✅ 已下载 {len(downloaded)} 个文件：")
+        for d in downloaded:
+            print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']}")
+            if d["summary"]:
+                print(f"        {d['summary']}")
+    if low_value:
+        print(f"  🗑️ 跳过 {len(low_value)} 个低价值文件：")
+        for f in low_value:
+            print(f"     - {os.path.basename(f['path'])} ({f.get('summary', '中间文件，无需下载')})")
     print(f"{'=' * 48}\n")
+
     return {"downloaded_paths": downloaded}

@@ -2,6 +2,7 @@ from langgraph.graph import END, START, StateGraph
 from src.agent.state import SandboxAgentState
 from src.agent.nodes import (
     analyze_intent,
+    analyze_output_files,
     create_sandbox,
     upload_files,
     run_agent,
@@ -36,6 +37,7 @@ def build_graph():
     builder.add_node("upload_files", upload_files)
     builder.add_node("run_agent", run_agent)
     builder.add_node("detect_output_files", detect_output_files)
+    builder.add_node("analyze_output_files", analyze_output_files)
     builder.add_node("download_files", download_files)
     builder.add_node("cleanup_sandbox", cleanup_sandbox)
 
@@ -62,8 +64,11 @@ def build_graph():
     # 大模型跑完，自动发现沙箱内新产生的文件
     builder.add_edge("run_agent", "detect_output_files")
 
-    # 发现完文件，下载回本地
-    builder.add_edge("detect_output_files", "download_files")
+    # 发现完文件，先智能分析（预览+价值判断+摘要），再下载
+    builder.add_edge("detect_output_files", "analyze_output_files")
+
+    # 分析完文件，下载回本地（仅高价值文件）
+    builder.add_edge("analyze_output_files", "download_files")
 
     # ⚠️ 绝对安全防线：下载完成后强制清理沙箱
     builder.add_edge("download_files", "cleanup_sandbox")

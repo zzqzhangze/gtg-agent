@@ -3,9 +3,23 @@
 > status: approved
 > priority: P0
 > created: 2026-05-29
-> updated: 2026-05-31 (方向一已完成, 方向五已合并)
+> updated: 2026-05-31 (方向一已完成, 方向五已合并, Web UI v1 已完成)
 >
 > 目标：将当前"确定性流水线"架构升级为"自适应智能体循环"
+>
+> ## 计划注册表
+>
+> | 计划 | 文件 | 状态 | 分支 |
+> |------|------|------|------|
+> | 主计划 | `.sisyphus/plans/agent-intelligence-upgrade.md` | `active` | — |
+> | 方向一：LLM 意图理解 | (已合入主计划) | ✅ 已合并 | `feat/llm-intent-analysis` |
+> | 方向五：智能文件处理 | (已合入主计划) | ✅ 已合并 | `feat/file-discovery` |
+> | 支线：Web UI | `.sisyphus/plans/web-ui.md` | ✅ v1 完成，待合并 | `feat/web-ui` |
+> | 方向二：评估-重试闭环 | — | ⬜ 未开始 | — |
+> | 方向三：Human-in-the-Loop | — | ⬜ 未开始 | — |
+> | 方向四：持久化记忆 | — | ⬜ 未开始 | — |
+> | 方向六：动态沙箱模板 | — | ⬜ 未开始 | — |
+> | 方向七：资源管理改进 | — | ⬜ 未开始 | — |
 
 ---
 
@@ -337,9 +351,10 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
   方向四 + 方向六 + 方向七
   → 记忆、模板、资源管理
 
-支线：前端 Web UI
-  → 关联计划：`.sisyphus/plans/web-ui.md`
+支线：前端 Web UI（✅ v1 完成，待合并）
+  → 计划：`.sisyphus/plans/web-ui.md`
   → 提供浏览器端聊天界面，随 agent 迭代同步更新
+  → 分支：`feat/web-ui`
 ```
 
 ---

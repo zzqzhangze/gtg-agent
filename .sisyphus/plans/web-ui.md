@@ -1,5 +1,10 @@
 # Web UI Implementation Plan
 
+> status: completed (v1 MVP)
+> branch: feat/web-ui
+> created: 2026-05-31
+> updated: 2026-05-31
+>
 > **Sub-plan of:** `.sisyphus/plans/agent-intelligence-upgrade.md`
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
@@ -31,41 +36,11 @@
 **Files:**
 - Modify: `api.py` (add imports + mount + root route update)
 
-- [ ] **Step 1: Add static file imports to api.py**
-
-Add `from fastapi.staticfiles import StaticFiles` at the top.
-
-- [ ] **Step 2: Mount StaticFiles and update root route**
-
-After the `app = FastAPI(...)` block, mount:
-```python
-app.mount("/static", StaticFiles(directory="static"), name="static")
-```
-
-Change the root `@app.get("/")` to return `FileResponse("static/index.html")` instead of JSON.
-
-Also add the import: `from fastapi.responses import FileResponse` (already imported — check).
-
-- [ ] **Step 3: Create temporary placeholder**
-
-Create `static/index.html` with minimal content:
-```html
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head><meta charset="UTF-8"><title>My Deep Agent</title></head>
-<body><h1>Loading...</h1></body>
-</html>
-```
-
-Create empty `static/style.css` and `static/app.js` (so StaticFiles doesn't 404).
-
-- [ ] **Step 4: Verify static serving**
-
-Run: `uv run uvicorn api:app --host 0.0.0.0 --port 8000`
-Check: `curl http://localhost:8000/` returns HTML
-Check: `curl http://localhost:8000/static/style.css` returns 200
-
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Add static file imports to api.py**
+- [x] **Step 2: Mount StaticFiles and update root route**
+- [x] **Step 3: Create temporary placeholder**
+- [x] **Step 4: Verify static serving**
+- [x] **Step 5: Commit**
 
 ```bash
 git add api.py static/index.html static/style.css static/app.js
@@ -79,7 +54,7 @@ git commit -m "feat: add static file serving for web UI"
 **Files:**
 - Create: `static/index.html`
 
-- [ ] **Step 1: Write the full index.html**
+- [x] **Step 1: Write the full index.html**
 
 Structure (semantic HTML5):
 ```
@@ -129,7 +104,7 @@ Structure (semantic HTML5):
 
 Note: `id="file-input"` is hidden; `#attach-btn` triggers its click.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add static/index.html
@@ -143,7 +118,7 @@ git commit -m "feat: implement chat UI - HTML page skeleton"
 **Files:**
 - Create: `static/style.css`
 
-- [ ] **Step 1: Write style.css with CSS variables and full layout**
+- [x] **Step 1: Write style.css with CSS variables and full layout**
 
 Sections:
 1. **CSS Reset** — box-sizing, margin/padding zero, font-family system stack
@@ -224,12 +199,7 @@ Key message bubble CSS:
 
 Open `static/index.html` in browser directly (or via FastAPI) — layout should render, dark mode toggle should work.
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add static/style.css
-git commit -m "feat: implement chat UI - CSS theming and dark mode"
-```
+- [x] **Step 3: Commit**
 
 ---
 
@@ -238,7 +208,7 @@ git commit -m "feat: implement chat UI - CSS theming and dark mode"
 **Files:**
 - Create: `static/app.js`
 
-- [ ] **Step 1: Write app.js with all interaction logic**
+- [x] **Step 1: Write app.js with all interaction logic**
 
 Sections:
 

@@ -1,1 +1,448 @@
-﻿/* CSS will be added in Task 3 */
+/* ── Reset ─────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── CSS Variables (Light) ─────────────────────────── */
+:root {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface-hover: #f0f0f0;
+  --text: #1a1a1a;
+  --text-secondary: #666666;
+  --border: #e0e0e0;
+  --bubble-user: #3b82f6;
+  --bubble-user-text: #ffffff;
+  --bubble-ai: #f0f0f0;
+  --bubble-ai-text: #1a1a1a;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --danger: #ef4444;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --header-h: 52px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+}
+
+/* ── CSS Variables (Dark) ──────────────────────────── */
+html.dark {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface-hover: #1e2a4a;
+  --text: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --border: #2a2a4e;
+  --bubble-user: #2563eb;
+  --bubble-ai: #2a2a3e;
+  --bubble-ai-text: #e4e4e7;
+  --accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Global & Layout ───────────────────────────────── */
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  transition: background 0.3s, color 0.3s;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ────────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-h);
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.logo {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ── Icon Buttons ──────────────────────────────────── */
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.icon-btn:hover {
+  background: var(--surface-hover);
+}
+
+/* ── Chat Container ────────────────────────────────── */
+#chat-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scroll-behavior: smooth;
+}
+
+#messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+}
+
+/* ── Message Bubbles ───────────────────────────────── */
+.message {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.6;
+  animation: fadeIn 0.3s ease;
+  position: relative;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--bubble-user);
+  color: var(--bubble-user-text);
+  border-bottom-right-radius: 4px;
+}
+
+.message.ai {
+  align-self: flex-start;
+  background: var(--bubble-ai);
+  color: var(--bubble-ai-text);
+  border-bottom-left-radius: 4px;
+}
+
+.message.ai p {
+  margin: 0 0 8px;
+}
+
+.message.ai p:last-child {
+  margin-bottom: 0;
+}
+
+.message.ai code {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+html.dark .message.ai code {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.message.ai pre {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+  line-height: 1.4;
+}
+
+html.dark .message.ai pre {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Download Links ────────────────────────────────── */
+.download-links {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.message.user .download-links {
+  border-top-color: rgba(255, 255, 255, 0.2);
+}
+
+.message.ai .download-links {
+  border-top-color: var(--border);
+}
+
+.download-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+  color: var(--accent);
+}
+
+.download-links a:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* ── Loading Indicator ─────────────────────────────── */
+#loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  align-self: flex-start;
+}
+
+.dot-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dotPulse 1.4s infinite ease-in-out both;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── File Preview Bar ──────────────────────────────── */
+#file-bar {
+  padding: 8px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+#file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.file-chip .file-size {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.file-chip .file-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-secondary);
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.file-chip .file-remove:hover {
+  color: var(--danger);
+}
+
+/* ── Input Area ────────────────────────────────────── */
+#input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+#attach-btn {
+  flex-shrink: 0;
+}
+
+#message-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  max-height: 150px;
+  transition: border-color 0.2s, background 0.3s, color 0.3s;
+}
+
+#message-input::placeholder {
+  color: var(--text-secondary);
+}
+
+#message-input:focus {
+  border-color: var(--accent);
+}
+
+#send-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+}
+
+#send-btn:hover {
+  background: var(--accent-hover);
+}
+
+#send-btn:active {
+  transform: scale(0.95);
+}
+
+#send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Drop Zone ─────────────────────────────────────── */
+#chat-container.drag-over {
+  outline: 3px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+html.dark #chat-container.drag-over {
+  background: rgba(96, 165, 250, 0.08);
+}
+
+/* ── Responsive (< 640px) ──────────────────────────── */
+@media (max-width: 640px) {
+  .message {
+    max-width: 90%;
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  #header {
+    padding: 0 12px;
+  }
+
+  #chat-container {
+    padding: 12px;
+  }
+
+  #input-area {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  #message-input {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  #send-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+}
+
+/* ── Scrollbar ─────────────────────────────────────── */
+#chat-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chat-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#chat-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+#chat-container::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ── Utilities ─────────────────────────────────────── */
+.hidden {
+  display: none !important;
+}

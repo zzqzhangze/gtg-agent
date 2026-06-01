@@ -278,7 +278,7 @@ feat/web-ui (from master)
 | 价值判断 | `nodes.py:analyze_output_files()` | LLM 判断 high/low + 中文摘要 |
 | 下载到本地 | `nodes.py:download_files()` | 高价值文件 → `downloads/{session_id}/{filename}`, 返回 `{sandbox, local, size, mime_type, summary}` |
 | 动态端点 | `api.py:download_session_file()` | `GET /sessions/{session_id}/downloads/{filename}` → `FileResponse` |
-| ZIP 打包 | `api.py:download_session_zip()` | `GET /sessions/{session_id}/downloads/zip` → `StreamingResponse(zip)` |
+| ZIP 打包 | `api.py:download_session_zip()` | `GET /sessions/{session_id}/downloads/zip?files=a&files=b` → `StreamingResponse(zip)`，支持 `?files=` 参数精确指定文件 |
 | 前端渲染 | `app.js:renderMessage()` | `f.size` → `formatFileSize()` ▶ 显示 "1.2 KB"; `f.local` → 构造 `/sessions/{sid}/downloads/{file}` URL |
 | 文件清理 | `api.py:_cleanup_expired_files()` | 启动时清理 `downloads/` 下超过 24h 的文件 |
 

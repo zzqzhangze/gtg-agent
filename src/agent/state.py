@@ -47,3 +47,11 @@ class SandboxAgentState(MessagesState):
     # detect_output_files 写入 [{path, mime_type}]，
     # analyze_output_files 补充 {size, preview, value, summary}。
     output_files: list[OutputFile] = []
+
+    # upload_files 节点的输出：已上传到沙箱的本地文件列表。
+    # 每个元素: {"local": "本地路径", "sandbox": "沙箱内路径"}
+    uploaded_paths: list[dict[str, str]] = []
+
+    # download_files 节点的输出：已从沙箱下载到本地的文件列表。
+    # 每个元素: {"sandbox": "沙箱内路径", "local": "本地路径", "summary": "摘要"}
+    downloaded_paths: list[dict[str, str]] = []

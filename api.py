@@ -20,6 +20,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 # 配置由 src.config 在 import 时自动加载 config.env
 from src.agent.graph import build_graph
@@ -32,6 +33,14 @@ app = FastAPI(
 
 # 全局图实例（线程安全：LangGraph 的 StateGraph 是纯函数式的）
 _graph = build_graph()
+
+# 挂载静态文件目录（前端界面）
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 挂载下载目录（沙箱输出文件）
+DOWNLOADS_DIR = Path("downloads")
+DOWNLOADS_DIR.mkdir(exist_ok=True)
+app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
 
 # 会话文件的临时存储根目录
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_deep_agent_uploads"
@@ -124,7 +133,12 @@ async def health():
 
 @app.get("/")
 async def root():
-    """API 信息"""
+    """Web UI 入口"""
+    return FileResponse("static/index.html")
+
+@app.get("/api-info")
+async def api_info():
+    """API 信息（旧根路由挪到 /api-info）"""
     return {
         "service": "My Deep Agent",
         "version": "0.1.0",

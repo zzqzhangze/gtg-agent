@@ -560,13 +560,10 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
     for f in output_files:
         ext_type = _classify_file_type(f["mime_type"])
         if task_type == "code_exec":
-            # code_exec：代码文件就是交付物
-            if ext_type in ("code", "data", "image"):
+            # code_exec：代码/文档/数据/图片都是潜在交付物
+            if ext_type in ("code", "data", "image", "doc"):
                 f["value"] = "high"
-                f["summary"] = "生成的代码/数据文件，是本次任务的直接产出"
-            elif ext_type == "doc":
-                f["value"] = "low"
-                f["summary"] = "日志/文档文件，非最终交付物"
+                f["summary"] = "生成的交付文件，是本次任务的直接产出"
             else:
                 f["value"] = "high"  # 保险：unknown 默认下载
                 f["summary"] = "任务产出文件"

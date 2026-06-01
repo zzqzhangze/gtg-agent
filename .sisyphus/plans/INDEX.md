@@ -9,7 +9,7 @@
 |------|------|--------|------|----------|----------|
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | approved | P0 | — | 2026-05-29 | 2026-05-31（优先级已更新，剩余方向：三→二→四/六/七） |
 | [web-ui.md](./web-ui.md) | ✅ merged → master (ad42340) | P1 | — | 2026-05-31 | 2026-06-01 |
-| [download-optimization.md](./download-optimization.md) | draft | P2 | — | 2026-06-01 | 2026-06-01 |
+| [download-optimization.md](./download-optimization.md) | in_progress (v1) | P2 | feat/download-optimization | 2026-06-01 | 2026-06-01 |
 
 ## 状态说明
 

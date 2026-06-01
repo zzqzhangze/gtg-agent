@@ -109,8 +109,10 @@ API 端点：
 | GET | `/` | Web 聊天界面（浏览器打开） |
 | POST | `/chat` | 发送消息 + 上传文件（multipart/form-data） |
 | GET | `/files/{session_id}/{filename}` | 下载处理后的文件 |
+| GET | `/sessions/{session_id}/downloads/{filename}` | 下载沙箱输出文件 |
+| GET | `/sessions/{session_id}/downloads/zip` | 批量打包下载沙箱输出文件 |
 | GET | `/health` | 健康检查 |
-| GET | `/api-info` | API 信息（旧根路由） |
+| GET | `/api-info` | API 信息 |
 
 ## 项目结构
 

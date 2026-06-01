@@ -1,6 +1,6 @@
 # 文件下载优化 Implementation Plan
 
-> status: draft
+> status: in_progress (Chunk 4 done, ready for review)
 > branch: feat/download-optimization
 > created: 2026-06-01
 > updated: 2026-06-01

@@ -1,10 +1,10 @@
 # Agent Web 聊天界面 — 设计方案
 
-> status: in_progress (v2)
+> status: updated (v2 — download optimization applied)
 > created: 2026-05-31
 > updated: 2026-06-01
 >
-> 对应 plan: `.sisyphus/plans/agent-intelligence-upgrade.md` — 支线任务（前端可视化交互）
+> 对应 plan: `.sisyphus/plans/download-optimization.md`
 
 ---
 
@@ -233,37 +233,41 @@ feat/web-ui (from master)
 ### 8.1 完整下载链路
 
 ```
-沙箱容器                    宿主机                        浏览器
-┌────────────┐    ┌────────────────────┐    ┌──────────────────┐
-│ /workspace │    │ src/agent/nodes.py │    │    static/       │
-│ /output/   │    │                    │    │    app.js        │
-│   foo.py   │───→│ download_files()   │───→│ /downloads/foo.py│
-│   report   │    │ ↓                  │    │ ↓                │
-│   .csv     │    │ downloads/         │    │ <a class=         │
-│   chart    │    │   foo.py           │    │  "file-chip">    │
-│   .png     │    │   report_1.csv     │    │ ⬇ foo.py ⬇      │
-└────────────┘    │   chart.png        │    └──────┬───────────┘
-                  └────────────────────┘           │
-                                                   │ GET /downloads/foo.py
-                                                   ▼
-                                          ┌────────────────────┐
-                                          │    FastAPI          │
-                                          │  StaticFiles        │
-                                          │  reads from disk    │
-                                          │  → HTTP response    │
-                                          └────────────────────┘
+沙箱容器                    宿主机                         浏览器
+┌────────────┐    ┌─────────────────────┐    ┌──────────────────────────┐
+│ /workspace │    │ src/agent/nodes.py  │    │     static/              │
+│ /output/   │    │                     │    │     app.js               │
+│   foo.py   │───→│ download_files()    │───→│ /sessions/{sid}/downloads│
+│   report   │    │ ↓ session_id 隔离    │    │   /foo.py                │
+│   .csv     │    │ downloads/{sid}/    │    │ ↓                        │
+│   chart    │    │   foo.py            │    │ <a class="file-chip">    │
+│   .png     │    │   report.csv        │    │ 🖼️ foo.py  1.2KB ⬇      │
+└────────────┘    │   chart.png         │    └──────┬───────────────────┘
+                  └─────────────────────┘           │
+                                                     │ GET /sessions/{sid}/
+                                                     │   downloads/foo.py
+                                                     ▼
+                                            ┌────────────────────────┐
+                                            │    FastAPI              │
+                                            │  @app.get("/sessions/   │
+                                            │   {sid}/downloads/     │
+                                            │   {filename}")         │
+                                            │  → FileResponse         │
+                                            └────────────────────────┘
 ```
 
 ### 8.2 为什么远程也能下载
 
 文件下载**不依赖文件在用户电脑上**，而是通过 HTTP 从服务器传输：
 
-- 服务器端：`downloads/` 目录位于服务器磁盘，FastAPI 通过 `StaticFiles` 挂载到 `/downloads`
-- 浏览器点击链接 → HTTP GET 请求服务器 → 服务器读自己磁盘 → 通过 HTTP 响应把文件流发给浏览器
-- **本地部署**: 浏览器 `http://localhost:8000/downloads/foo.py` → 服务器是 localhost
-- **远程部署**: 浏览器 `http://server-ip:8000/downloads/foo.py` → 服务器是 remote
+- **服务器端**：`downloads/{session_id}/` 目录位于服务器磁盘，动态路由端点读取并返回文件
+- **浏览器点击链接** → HTTP GET 请求服务器 → 服务器读自己磁盘 → 通过 HTTP 响应把文件流发给浏览器
+- **两种场景的下载行为完全一致**，只是 URL 中的主机名不同
 
-两种场景的下载行为完全一致，只是 URL 中的主机名不同。
+| 部署方式 | URL 示例 |
+|---------|----------|
+| 本地部署 | `http://localhost:8000/sessions/a1b2/downloads/report.csv` |
+| 远程部署 | `http://server-ip:8000/sessions/a1b2/downloads/report.csv` |
 
 ### 8.3 当前实现的关键路径（代码溯源）
 
@@ -272,16 +276,17 @@ feat/web-ui (from master)
 | 沙箱产出文件 | Agent 写入 `/workspace/output/` | — |
 | 扫描发现 | `nodes.py:detect_output_files()` | `find /workspace/output -type f` |
 | 价值判断 | `nodes.py:analyze_output_files()` | LLM 判断 high/low + 中文摘要 |
-| 下载到本地 | `nodes.py:download_files()` | 高价值文件 → `downloads/{filename}`, 文件名去重 `_1`,`_2` |
-| 返回路径 | `downloaded_paths` → API JSON | `{"sandbox": "...", "local": "downloads/foo.py", "summary": "..."}` |
-| 前端渲染 | `app.js:renderMessage()` | 提取文件名 → `<a href="/downloads/foo.py">` |
-| 服务端响应 | `api.py` line 43 `StaticFiles` | 读服务器 `downloads/` 目录 → HTTP 200 + 文件流 |
+| 下载到本地 | `nodes.py:download_files()` | 高价值文件 → `downloads/{session_id}/{filename}`, 返回 `{sandbox, local, size, mime_type, summary}` |
+| 动态端点 | `api.py:download_session_file()` | `GET /sessions/{session_id}/downloads/{filename}` → `FileResponse` |
+| ZIP 打包 | `api.py:download_session_zip()` | `GET /sessions/{session_id}/downloads/zip` → `StreamingResponse(zip)` |
+| 前端渲染 | `app.js:renderMessage()` | `f.size` → `formatFileSize()` ▶ 显示 "1.2 KB"; `f.local` → 构造 `/sessions/{sid}/downloads/{file}` URL |
+| 文件清理 | `api.py:_cleanup_expired_files()` | 启动时清理 `downloads/` 下超过 24h 的文件 |
 
 ### 8.4 注意事项
 
-- `/downloads` 路径**没有 session 隔离** → 不同会话的同名文件通过 `_1`, `_2` 后缀去重，但没有 session 前缀
-- 不设文件过期清理 → 文件永久保留在服务器磁盘（依赖手动清理）
-- 无访问控制 → 知道 URL 即可下载（单机工具场景可接受）
+- ~~`/downloads` 路径**没有 session 隔离** → 不同会话的同名文件通过 `_1`, `_2` 后缀去重，但没有 session 前缀~~ ✅ **已修复**：文件按 `downloads/{session_id}/{filename}` 存储，不同会话文件完全隔离
+- ~~不设文件过期清理 → 文件永久保留在服务器磁盘（依赖手动清理）~~ ✅ **已修复**：服务启动时自动扫描并删除超过 24 小时的文件
+- ~~无访问控制 → 知道 URL 即可下载（单机工具场景可接受）~~ 单机工具场景不变
 
 ## 9. 不做的（明确排除）
 

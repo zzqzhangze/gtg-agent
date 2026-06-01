@@ -488,6 +488,17 @@ function renderMessage(role, content, files, isRestore) {
 
       dlDiv.appendChild(chip);
     });
+
+    // 打包下载按钮
+    const sessionId = STATE.sessionId;
+    const zipBtn = document.createElement("a");
+    zipBtn.className = "file-chip zip-all";
+    zipBtn.href = `/sessions/${encodeURIComponent(sessionId)}/downloads/zip`;
+    zipBtn.download = `${sessionId}.zip`;
+    zipBtn.title = "打包下载所有文件";
+    zipBtn.innerHTML = `<span class="chip-icon">📦</span><span class="chip-name">打包下载</span><span class="chip-arrow">⬇</span>`;
+    dlDiv.appendChild(zipBtn);
+
     bubble.appendChild(dlDiv);
   }
 

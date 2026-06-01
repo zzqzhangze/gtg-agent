@@ -405,14 +405,15 @@ html.dark .message p code {
   white-space: nowrap;
 }
 
-.file-chip .chip-arrow {
-  font-size: 12px;
-  opacity: 0.7;
-  transition: opacity 0.15s;
+/* ── 打包下载按钮 ──────────────────────────────────── */
+.file-chip.zip-all {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
-.file-chip:hover .chip-arrow {
-  opacity: 1;
+.file-chip.zip-all:hover {
+  background: var(--accent-hover);
 }
 
 /* ── Sidebar ────────────────────────────────────────── */

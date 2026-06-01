@@ -85,6 +85,7 @@ async def chat(
         "messages": [{"role": "user", "content": message}],
         "input_files": local_files,
         "output_files": [],  # 由 run_agent 节点内部根据业务逻辑填充
+        "session_id": session_id,  # 文件下载 session 隔离
     }
     config = {"configurable": {"thread_id": session_id}}
 

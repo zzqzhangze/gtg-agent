@@ -660,8 +660,9 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
 
-    # 确保本地下载目录存在
-    download_dir = os.path.join(os.getcwd(), "downloads")
+    # 使用 session_id 隔离下载目录，回退到 "default"
+    session_id = state.get("session_id", "default")
+    download_dir = os.path.join(os.getcwd(), "downloads", session_id)
     os.makedirs(download_dir, exist_ok=True)
 
     high_value = [f for f in output_files if f.get("value") == "high"]
@@ -687,9 +688,13 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
         with open(local_path, "wb") as f_out:
             f_out.write(content)
 
+        file_size = os.path.getsize(local_path)
+
         downloaded.append({
             "sandbox": sandbox_path,
             "local": local_path,
+            "size": file_size,
+            "mime_type": f.get("mime_type", "application/octet-stream"),
             "summary": f.get("summary", ""),
         })
 
@@ -698,7 +703,7 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     if downloaded:
         print(f"  ✅ 已下载 {len(downloaded)} 个文件：")
         for d in downloaded:
-            print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']}")
+            print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']} ({d['size']} bytes)")
             if d["summary"]:
                 print(f"        {d['summary']}")
     if low_value:

@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph.message import MessagesState
 
@@ -53,5 +53,8 @@ class SandboxAgentState(MessagesState):
     uploaded_paths: list[dict[str, str]] = []
 
     # download_files 节点的输出：已从沙箱下载到本地的文件列表。
-    # 每个元素: {"sandbox": "沙箱内路径", "local": "本地路径", "summary": "摘要"}
-    downloaded_paths: list[dict[str, str]] = []
+    # 每个元素: {"sandbox", "local", "summary", "size", "mime_type"}
+    downloaded_paths: list[dict[str, Any]] = []
+
+    # 当前会话 ID，用于文件存储隔离
+    session_id: str | None = None

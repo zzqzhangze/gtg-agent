@@ -26,8 +26,13 @@ def route_after_analysis(state: SandboxAgentState) -> str:
     return "run_agent"  # 拨向直接聊天的轨道
 
 
-def build_graph():
-    """将所有节点和传送带组装成一张完整的执行图"""
+def build_graph(*, checkpointer=None):
+    """将所有节点和传送带组装成一张完整的执行图
+
+    Args:
+        checkpointer: 可选，LangGraph 的 Checkpointer 实例（如 SqliteSaver），
+                      用于持久化对话状态。为 None 时保持现有行为（无持久化）。
+    """
     # 1. 拿着账本模版，建立流水线基座
     builder = StateGraph(SandboxAgentState)
 
@@ -45,7 +50,7 @@ def build_graph():
     # 任何任务进来，第一站必定是去分析意图
     builder.add_edge(START, "analyze_intent")
 
-    # 这里的传送带是一个“三岔路口”，根据 route_after_analysis 的结果自动变轨
+    # 这里的传送带是一个"三岔路口"，根据 route_after_analysis 的结果自动变轨
     builder.add_conditional_edges(
         "analyze_intent",
         route_after_analysis,
@@ -77,4 +82,4 @@ def build_graph():
     builder.add_edge("cleanup_sandbox", END)
 
     # 编译并返回最终可执行的图
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)

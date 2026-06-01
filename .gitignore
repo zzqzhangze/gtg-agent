@@ -12,3 +12,4 @@ wheels/
 .venv
 /tmp/
 /downloads/
+/.sisyphus/sessions/

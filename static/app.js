@@ -193,8 +193,12 @@ function renderSidebar() {
     item.dataset.sessionId = sess.id;
 
     const displayName = sess.name || truncate(sess.firstMessage, 40) || "新会话";
+    const isCurrentSession = sess.id === STATE.sessionId;
     item.innerHTML = `
-      <div class="sess-name">${escapeHtml(displayName)}</div>
+      <div class="sess-header">
+        <button class="sess-del" title="删除此会话">✕</button>
+        <div class="sess-name">${escapeHtml(displayName)}</div>
+      </div>
       <div class="sess-meta">
         <span>#${sess.id.split("-")[0]}</span>
         <span>${getRelativeTime(sess.timestamp)}</span>
@@ -209,8 +213,15 @@ function renderSidebar() {
       startRename(sess.id, nameEl);
     });
 
-    item.addEventListener("click", () => {
+    item.addEventListener("click", (e) => {
+      if (e.target.closest(".sess-del")) return;
       if (sess.id !== STATE.sessionId) switchSession(sess.id);
+    });
+
+    const delBtn = item.querySelector(".sess-del");
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      confirmDeleteSession(sess.id, isCurrentSession);
     });
 
     list.appendChild(item);
@@ -289,6 +300,51 @@ function switchSession(targetId) {
   if (window.innerWidth <= 640) {
     els.sidebar.classList.add("collapsed");
   }
+}
+
+async function deleteSession(sessionId, isCurrentSession) {
+  // 1. 通知后端删除该会话的持久化记忆
+  try {
+    await fetch(`/sessions/${encodeURIComponent(sessionId)}/history`, { method: "DELETE" });
+  } catch (_) {
+    // 后端删除失败不阻塞前端清理
+  }
+
+  // 2. 从 localStorage 移除
+  let sessions = getSessions();
+  const idx = findSessionIndex(sessions, sessionId);
+  if (idx >= 0) {
+    sessions.splice(idx, 1);
+    saveSessions(sessions);
+  }
+
+  // 3. 如果删除的是当前会话，新建一个
+  if (isCurrentSession) {
+    STATE.sessionId = crypto.randomUUID();
+    STATE.currentMessages = [];
+    STATE.sessionName = "";
+    localStorage.setItem("session_id", STATE.sessionId);
+    els.messages.innerHTML = "";
+
+    sessions = getSessions();
+    sessions.push({
+      id: STATE.sessionId,
+      name: "",
+      timestamp: new Date().toISOString(),
+      firstMessage: "",
+      messages: [],
+    });
+    saveSessions(sessions);
+    updateSessionDisplay();
+  }
+
+  renderSidebar();
+}
+
+function confirmDeleteSession(sessionId, isCurrentSession) {
+  const name = sessionId === STATE.sessionId ? "当前会话" : "此会话";
+  if (!confirm(`确定删除${name}？删除后无法恢复。`)) return;
+  deleteSession(sessionId, isCurrentSession);
 }
 
 function toggleSidebar() {

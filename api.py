@@ -13,6 +13,9 @@ FastAPI 服务入口 — 将 LangGraph Agent 暴露为 REST API。
     pip install fastapi uvicorn python-multipart
 """
 
+import os
+import sqlite3
+import sys
 import uuid
 import tempfile
 import shutil
@@ -25,9 +28,14 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 # 配置由 src.config 在 import 时自动加载 config.env
 from src.agent.graph import build_graph
+
+# Windows GBK 终端兼容
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 app = FastAPI(
     title="My Deep Agent API",
@@ -35,8 +43,35 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 持久化 checkpointer
+_SESSIONS_DIR = os.path.join(os.path.dirname(__file__), ".sisyphus", "sessions")
+os.makedirs(_SESSIONS_DIR, exist_ok=True)
+_db_path = os.path.join(_SESSIONS_DIR, "sessions.db")
+_conn = sqlite3.connect(_db_path, check_same_thread=False)
+_saver = SqliteSaver(_conn)
+
+# 启动时清理过期会话（只保留最近 30 个）
+def _cleanup_old_sessions(max_threads: int = 30) -> None:
+    try:
+        cur = _saver.conn.execute(
+            "SELECT thread_id FROM (SELECT thread_id, MIN(checkpoint_id) as first_cpid "
+            "FROM checkpoints GROUP BY thread_id ORDER BY first_cpid DESC LIMIT -1 OFFSET ?)",
+            (max_threads,)
+        )
+        old = [r[0] for r in cur.fetchall()]
+        if old:
+            ph = ",".join("?" for _ in old)
+            _saver.conn.execute(f"DELETE FROM writes WHERE thread_id IN ({ph})", old)
+            _saver.conn.execute(f"DELETE FROM checkpoints WHERE thread_id IN ({ph})", old)
+            _saver.conn.commit()
+            print(f"[清理] 已清理 {len(old)} 个过期会话")
+    except Exception as e:
+        print(f"[清理] 跳过（{e}）")
+
+_cleanup_old_sessions(max_threads=30)
+
 # 全局图实例（线程安全：LangGraph 的 StateGraph 是纯函数式的）
-_graph = build_graph()
+_graph = build_graph(checkpointer=_saver)
 
 # 挂载静态文件目录（前端界面）
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -85,8 +120,15 @@ async def chat(
     input_data = {
         "messages": [{"role": "user", "content": message}],
         "input_files": local_files,
-        "output_files": [],  # 由 run_agent 节点内部根据业务逻辑填充
-        "session_id": session_id,  # 文件下载 session 隔离
+        "output_files": [],
+        "uploaded_paths": [],
+        "downloaded_paths": [],
+        "sandbox_id": None,
+        "needs_sandbox": None,
+        "task_type": None,
+        "intent_reasoning": None,
+        "suggested_template": None,
+        "session_id": session_id,  # 文件下载目录隔离
     }
     config = {"configurable": {"thread_id": session_id}}
 
@@ -153,6 +195,21 @@ async def download_session_zip(session_id: str, files: list[str] = Query([], des
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={session_id}.zip"},
     )
+
+
+@app.delete("/sessions/{session_id}/history")
+async def delete_session_history(session_id: str):
+    """
+    删除指定会话的持久化记忆（checkpoints）。
+    不影响本地文件下载目录，只删除对话历史。
+    """
+    try:
+        _saver.conn.execute("DELETE FROM writes WHERE thread_id = ?", (session_id,))
+        _saver.conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (session_id,))
+        _saver.conn.commit()
+        return JSONResponse({"status": "ok", "session_id": session_id})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除失败: {e}")
 
 
 @app.get("/sessions/{session_id}/downloads/{filename}")

@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.136.3",
     "langchain-openai>=1.2.2",
     "langgraph>=1.2.2",
+    "langgraph-checkpoint-sqlite>=3.1.0",
     "opensandbox>=0.1.9",
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.29",

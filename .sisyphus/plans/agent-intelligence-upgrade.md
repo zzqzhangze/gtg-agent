@@ -1,9 +1,9 @@
 # Agent 智能升级计划
 
-> status: approved
-> branch: —
+> status: in_progress
+> branch: feat/persistent-memory
 > created: 2026-05-29
-> updated: 2026-05-31
+> updated: 2026-06-01
 
 ---
 
@@ -133,9 +133,11 @@ run_agent → evaluate_result
 
 ---
 
-## 方向四：持久化记忆系统
+## 方向四：持久化记忆系统 ✅
 
-### 现状
+> 状态：**已完成**（2026-06-01）
+
+### 现状（改造前）
 
 ```python
 messages: list[dict] = []                           # REPL: 纯内存
@@ -144,22 +146,23 @@ config = {"configurable": {"thread_id": "interactive-session"}}  # 固定 ID
 
 ### 目标
 
-- 接入 LangGraph 的 `SqliteSaver` 或 `MemorySaver`，不同 thread_id 隔离会话
+- 接入 LangGraph 的 `SqliteSaver`，不同 thread_id 隔离会话
 - 每个 REPL 会话使用不同 thread_id
 - 支持跨轮对话时复用上下文
 
-### 方案要点
+### 实现要点
 
-- `build_graph()` 接受 `checkpointer` 参数
-- REPL 模式启动时生成随机 thread_id
-- 历史消息持久化到本地 `.sisyphus/sessions/` 目录
-- 支持 `/history last` 只看本轮、`/history all` 看全部
+- `build_graph()` 接受可选 `checkpointer` 参数，传递给 `builder.compile()`
+- 启动时创建 `SqliteSaver` 持久化到 `.sisyphus/sessions/sessions.db`
+- 每个 REPL 会话生成 UUID 作为 thread_id，消息自动持久化
+- 输入数据显式重置非消息状态字段（`sandbox_id`/`task_type`等），避免跨轮残留
+- `/history` 从 checkpointer 加载当前会话消息
+- `/history all` 列出所有历史会话（thread_id + 首条消息预览）
 
 ### 涉及文件
 
-- `src/agent/graph.py` — 接受 checkpointer 参数
-- `main.py` — 改为单例 graph，按会话使用不同 thread_id
-- `src/agent/state.py` — 可能需要扩展持久化字段
+- `src/agent/graph.py` — `build_graph(*, checkpointer=None)`
+- `main.py` — SqliteSaver 初始化、UUID thread_id、状态重置、/history last/all
 
 ---
 
@@ -323,6 +326,7 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
 | 方向 | 状态 |
 |------|------|
 | 方向一：LLM 意图理解 | ✅ 已合并到 master |
+| 方向四：持久化记忆系统 | ✅ 待合并到 master |
 | 方向五：智能文件处理 | ✅ 已合并到 master |
 | 支线：Web UI | ✅ v1 完成，待合并到 master |
 
@@ -338,8 +342,8 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
   → 让 Agent 能自我修正
 
 第三优先（规模化）：
-  方向四 + 方向六 + 方向七
-  → 记忆、模板、资源管理
+  方向六 + 方向七
+  → 模板、资源管理
 ```
 
 ---

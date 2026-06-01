@@ -486,6 +486,41 @@ html.dark .message p code {
   outline: 1px solid var(--border);
 }
 
+.session-item .sess-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-item .sess-del {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.session-item:hover .sess-del {
+  display: flex;
+}
+
+.sess-del:hover {
+  opacity: 1;
+  background: var(--danger-bg, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+}
+
 .session-item .sess-name {
   font-size: 14px;
   font-weight: 500;

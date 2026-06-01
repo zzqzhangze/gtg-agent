@@ -6,6 +6,9 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
 
 ```
 用户输入 ──→ Web UI (浏览器) ──→ FastAPI /chat ──→ LangGraph Pipeline
+                 │  session_id  │                     │ (SqliteSaver 持久化)
+                 │  隔离会话记忆 │                     ▼
+                 └───────────────────────────── 历史消息自动恢复
                                                       │
                  ┌────────────────────────────────────┼────────────────────┐
                  ▼ chat/compute                    ▼ code_exec           ▼ data_analysis
@@ -25,7 +28,8 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
 ```
 
 > 意图分析使用 LLM 分类，支持 `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
-> 沙箱模板根据任务类型动态选择。Web UI 通过 `GET /` 访问。
+> 沙箱模板根据任务类型动态选择。对话消息持久化到 `.sisyphus/sessions/`，通过 `session_id` 隔离。
+> Web UI 通过 `GET /` 访问。
 
 ## 快速开始
 
@@ -80,7 +84,10 @@ REPL 模式下支持以下命令：
 | `/file <路径>` | 添加文件到本轮对话 |
 | `/files` | 查看已添加的文件列表 |
 | `/clear` | 清空文件列表 |
-| `/history` | 查看当前对话历史 |
+| `/history` | 查看本轮对话历史 |
+| `/history all` | 查看所有已持久化的历史会话 |
+| `/history clear` | 清除本轮对话历史 |
+| `/history clear --all` | 清除所有历史会话 |
 | `/help` | 显示帮助 |
 | `/exit` 或 Ctrl+C | 退出 |
 
@@ -107,10 +114,11 @@ API 端点：
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/` | Web 聊天界面（浏览器打开） |
-| POST | `/chat` | 发送消息 + 上传文件（multipart/form-data） |
+| POST | `/chat` | 发送消息 + 上传文件；`session_id` 参数决定对话记忆隔离 |
 | GET | `/files/{session_id}/{filename}` | 下载处理后的文件 |
 | GET | `/sessions/{session_id}/downloads/{filename}` | 下载沙箱输出文件 |
 | GET | `/sessions/{session_id}/downloads/zip` | 批量打包下载沙箱输出文件 |
+| DELETE | `/sessions/{session_id}/history` | 删除指定会话的持久化记忆 |
 | GET | `/health` | 健康检查 |
 | GET | `/api-info` | API 信息 |
 
@@ -133,6 +141,8 @@ my_deep_agent/
 │   ├── config.py       # 集中配置（所有环境变量在此读取）
 │   ├── sandbox/        # 沙箱接口层
 │   └── agent/          # Agent 编排层
+├── .sisyphus/
+│   └── sessions/       # 对话消息持久化数据库（自动创建）
 ├── downloads/          # 沙箱结果文件下载目录（自动创建）
 └── docs/               # 备选方案、设计文档存档
 ```

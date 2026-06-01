@@ -228,7 +228,62 @@ feat/web-ui (from master)
 - R3: 骨架 → 带样式的布局（含暗色模式）
 - R4: 样式布局 → 完整交互功能
 
-## 8. 不做的（明确排除）
+## 8. 文件下载原理（远程部署说明）
+
+### 8.1 完整下载链路
+
+```
+沙箱容器                    宿主机                        浏览器
+┌────────────┐    ┌────────────────────┐    ┌──────────────────┐
+│ /workspace │    │ src/agent/nodes.py │    │    static/       │
+│ /output/   │    │                    │    │    app.js        │
+│   foo.py   │───→│ download_files()   │───→│ /downloads/foo.py│
+│   report   │    │ ↓                  │    │ ↓                │
+│   .csv     │    │ downloads/         │    │ <a class=         │
+│   chart    │    │   foo.py           │    │  "file-chip">    │
+│   .png     │    │   report_1.csv     │    │ ⬇ foo.py ⬇      │
+└────────────┘    │   chart.png        │    └──────┬───────────┘
+                  └────────────────────┘           │
+                                                   │ GET /downloads/foo.py
+                                                   ▼
+                                          ┌────────────────────┐
+                                          │    FastAPI          │
+                                          │  StaticFiles        │
+                                          │  reads from disk    │
+                                          │  → HTTP response    │
+                                          └────────────────────┘
+```
+
+### 8.2 为什么远程也能下载
+
+文件下载**不依赖文件在用户电脑上**，而是通过 HTTP 从服务器传输：
+
+- 服务器端：`downloads/` 目录位于服务器磁盘，FastAPI 通过 `StaticFiles` 挂载到 `/downloads`
+- 浏览器点击链接 → HTTP GET 请求服务器 → 服务器读自己磁盘 → 通过 HTTP 响应把文件流发给浏览器
+- **本地部署**: 浏览器 `http://localhost:8000/downloads/foo.py` → 服务器是 localhost
+- **远程部署**: 浏览器 `http://server-ip:8000/downloads/foo.py` → 服务器是 remote
+
+两种场景的下载行为完全一致，只是 URL 中的主机名不同。
+
+### 8.3 当前实现的关键路径（代码溯源）
+
+| 环节 | 位置 | 行为 |
+|------|------|------|
+| 沙箱产出文件 | Agent 写入 `/workspace/output/` | — |
+| 扫描发现 | `nodes.py:detect_output_files()` | `find /workspace/output -type f` |
+| 价值判断 | `nodes.py:analyze_output_files()` | LLM 判断 high/low + 中文摘要 |
+| 下载到本地 | `nodes.py:download_files()` | 高价值文件 → `downloads/{filename}`, 文件名去重 `_1`,`_2` |
+| 返回路径 | `downloaded_paths` → API JSON | `{"sandbox": "...", "local": "downloads/foo.py", "summary": "..."}` |
+| 前端渲染 | `app.js:renderMessage()` | 提取文件名 → `<a href="/downloads/foo.py">` |
+| 服务端响应 | `api.py` line 43 `StaticFiles` | 读服务器 `downloads/` 目录 → HTTP 200 + 文件流 |
+
+### 8.4 注意事项
+
+- `/downloads` 路径**没有 session 隔离** → 不同会话的同名文件通过 `_1`, `_2` 后缀去重，但没有 session 前缀
+- 不设文件过期清理 → 文件永久保留在服务器磁盘（依赖手动清理）
+- 无访问控制 → 知道 URL 即可下载（单机工具场景可接受）
+
+## 9. 不做的（明确排除）
 
 - 工作流可视化（LangGraph 管线图）— 后续方向
 - 实时日志流（SSE/WebSocket）— 后续升级

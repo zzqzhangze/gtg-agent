@@ -1,14 +1,26 @@
 // ── State ──────────────────────────────────────────────
 const STATE = {
   sessionId: loadSessionId(),
+  sessionName: "",
   pendingFiles: [],
   isSending: false,
+  currentMessages: [], // [{role, content, files?}]
 };
+
+const MAX_SESSIONS = 20;
 
 // ── DOM References ─────────────────────────────────────
 let els = {};
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Configure marked for chat-style markdown
+  if (typeof marked !== "undefined") {
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    });
+  }
+
   els = {
     messages: document.getElementById("messages"),
     loading: document.getElementById("loading"),
@@ -21,14 +33,21 @@ document.addEventListener("DOMContentLoaded", () => {
     themeToggle: document.getElementById("theme-toggle"),
     newSessionBtn: document.getElementById("new-session"),
     chatContainer: document.getElementById("chat-container"),
+    sidebar: document.getElementById("sidebar"),
+    sidebarToggle: document.getElementById("sidebar-toggle"),
+    sessionList: document.getElementById("session-list"),
+    newSessionSidebar: document.getElementById("new-session-sidebar"),
   };
 
   initTheme();
+  loadCurrentMessages();
   updateSessionDisplay();
+  renderSidebar();
   bindEvents();
+  bindSidebarEvents();
 });
 
-// ── Session Management ─────────────────────────────────
+// ── Session Persistence ────────────────────────────────
 function loadSessionId() {
   let sid = localStorage.getItem("session_id");
   if (!sid) {
@@ -38,32 +57,227 @@ function loadSessionId() {
   return sid;
 }
 
-function updateSessionDisplay() {
-  const short = STATE.sessionId.split("-")[0];
-  // Log to console
-  console.log(`[Session] ID: ${STATE.sessionId}（短码: ${short}）`);
-  // Prepend session badge to header-actions
-  let badge = document.getElementById("session-badge");
-  if (!badge) {
-    badge = document.createElement("span");
-    badge.id = "session-badge";
-    badge.className = "session-id";
-    const actions = document.querySelector(".header-actions");
-    if (actions) actions.insertBefore(badge, actions.firstChild);
+function getSessions() {
+  try {
+    return JSON.parse(localStorage.getItem("sessions")) || [];
+  } catch {
+    return [];
   }
-  badge.textContent = `会话: ${STATE.sessionId}`;
-  badge.title = `会话 ID: ${STATE.sessionId}`;
 }
 
+function saveSessions(sessions) {
+  while (sessions.length > MAX_SESSIONS) sessions.shift();
+  localStorage.setItem("sessions", JSON.stringify(sessions));
+}
 
+function findSessionIndex(sessions, id) {
+  return sessions.findIndex(s => s.id === id);
+}
+
+function saveCurrentSession() {
+  const sessions = getSessions();
+  const idx = findSessionIndex(sessions, STATE.sessionId);
+  const entry = {
+    id: STATE.sessionId,
+    name: STATE.sessionName || "",
+    timestamp: new Date().toISOString(),
+    firstMessage: getFirstMessage(STATE.currentMessages),
+    messages: STATE.currentMessages,
+  };
+
+  if (idx >= 0) {
+    if (sessions[idx].name && !STATE.sessionName) entry.name = sessions[idx].name;
+    sessions[idx] = entry;
+  } else {
+    sessions.push(entry);
+  }
+  saveSessions(sessions);
+}
+
+function loadCurrentMessages() {
+  const sessions = getSessions();
+  const idx = findSessionIndex(sessions, STATE.sessionId);
+  if (idx >= 0 && sessions[idx].messages) {
+    STATE.currentMessages = sessions[idx].messages;
+    STATE.sessionName = sessions[idx].name || "";
+    els.messages.innerHTML = "";
+    for (const msg of STATE.currentMessages) {
+      renderMessage(msg.role, msg.content, msg.files, true);
+    }
+  } else {
+    STATE.currentMessages = [];
+    STATE.sessionName = "";
+  }
+}
+
+function getFirstMessage(messages) {
+  if (!messages || messages.length === 0) return "";
+  const first = messages[0];
+  return first && first.role === "user" ? first.content : "";
+}
+
+function truncate(text, len) {
+  if (!text) return "";
+  return text.length > len ? text.slice(0, len) + "…" : text;
+}
+
+// ── Session Display ────────────────────────────────────
+function updateSessionDisplay() {
+  // Session info is shown in the sidebar entries
+}
 
 function resetSession() {
+  saveCurrentSession();
+
   STATE.sessionId = crypto.randomUUID();
+  STATE.currentMessages = [];
+  STATE.sessionName = "";
   localStorage.setItem("session_id", STATE.sessionId);
   els.messages.innerHTML = "";
   STATE.pendingFiles = [];
   updateFileBar();
   updateSessionDisplay();
+
+  const sessions = getSessions();
+  sessions.push({
+    id: STATE.sessionId,
+    name: "",
+    timestamp: new Date().toISOString(),
+    firstMessage: "",
+    messages: [],
+  });
+  saveSessions(sessions);
+  renderSidebar();
+}
+
+// ── Sidebar ────────────────────────────────────────────
+function renderSidebar() {
+  const list = els.sessionList;
+  if (!list) return;
+  const sessions = getSessions();
+  list.innerHTML = "";
+
+  const reversed = [...sessions].reverse();
+  for (const sess of reversed) {
+    const item = document.createElement("div");
+    item.className = "session-item";
+    if (sess.id === STATE.sessionId) item.classList.add("active");
+    item.dataset.sessionId = sess.id;
+
+    const displayName = sess.name || truncate(sess.firstMessage, 40) || "新会话";
+    item.innerHTML = `
+      <div class="sess-name">${escapeHtml(displayName)}</div>
+      <div class="sess-meta">
+        <span>#${sess.id.split("-")[0]}</span>
+        <span>${getRelativeTime(sess.timestamp)}</span>
+      </div>
+      ${sess.firstMessage && !sess.name ? `<div class="sess-preview">${escapeHtml(truncate(sess.firstMessage, 60))}</div>` : ""}
+    `;
+
+    const nameEl = item.querySelector(".sess-name");
+    nameEl.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      if (nameEl.contentEditable === "true") return;
+      startRename(sess.id, nameEl);
+    });
+
+    item.addEventListener("click", () => {
+      if (sess.id !== STATE.sessionId) switchSession(sess.id);
+    });
+
+    list.appendChild(item);
+  }
+}
+
+function startRename(sessionId, nameEl) {
+  nameEl.contentEditable = "true";
+  nameEl.focus();
+  const range = document.createRange();
+  range.selectNodeContents(nameEl);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  const finish = () => {
+    if (nameEl.contentEditable !== "true") return;
+    nameEl.contentEditable = "false";
+    const newName = nameEl.textContent.trim();
+    if (!newName) {
+      const sessions = getSessions();
+      const idx = findSessionIndex(sessions, sessionId);
+      if (idx >= 0) {
+        nameEl.textContent = sessions[idx].name || truncate(sessions[idx].firstMessage, 40) || "新会话";
+      }
+      return;
+    }
+    const sessions = getSessions();
+    const idx = findSessionIndex(sessions, sessionId);
+    if (idx >= 0) {
+      sessions[idx].name = newName;
+      saveSessions(sessions);
+      if (sessionId === STATE.sessionId) STATE.sessionName = newName;
+    }
+  };
+
+  nameEl.addEventListener("blur", finish, { once: true });
+  nameEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      nameEl.blur();
+    }
+    if (e.key === "Escape") {
+      const sessions = getSessions();
+      const idx = findSessionIndex(sessions, sessionId);
+      if (idx >= 0) {
+        nameEl.textContent = sessions[idx].name || truncate(sessions[idx].firstMessage, 40) || "新会话";
+      }
+      nameEl.blur();
+    }
+  }, { once: true });
+}
+
+function switchSession(targetId) {
+  saveCurrentSession();
+
+  const sessions = getSessions();
+  const idx = findSessionIndex(sessions, targetId);
+  if (idx < 0) return;
+
+  STATE.sessionId = targetId;
+  STATE.currentMessages = sessions[idx].messages || [];
+  STATE.sessionName = sessions[idx].name || "";
+  localStorage.setItem("session_id", targetId);
+
+  els.messages.innerHTML = "";
+  for (const msg of STATE.currentMessages) {
+    renderMessage(msg.role, msg.content, msg.files, true);
+  }
+
+  STATE.pendingFiles = [];
+  updateFileBar();
+  updateSessionDisplay();
+  renderSidebar();
+
+  if (window.innerWidth <= 640) {
+    els.sidebar.classList.add("collapsed");
+  }
+}
+
+function toggleSidebar() {
+  els.sidebar.classList.toggle("collapsed");
+}
+
+function getRelativeTime(isoStr) {
+  if (!isoStr) return "";
+  const now = Date.now();
+  const then = new Date(isoStr).getTime();
+  const diff = Math.floor((now - then) / 1000);
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+  const days = Math.floor(diff / 86400);
+  if (days < 7) return `${days}天前`;
+  return new Date(isoStr).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
 }
 
 // ── Theme ──────────────────────────────────────────────
@@ -76,7 +290,6 @@ function initTheme() {
     document.documentElement.classList.remove("dark");
     els.themeToggle.textContent = "🌙";
   } else {
-    // Follow system preference
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     if (prefersDark) {
       document.documentElement.classList.add("dark");
@@ -152,6 +365,7 @@ async function sendMessage() {
 
   // Show user message immediately
   renderMessage("user", text);
+  STATE.currentMessages.push({ role: "user", content: text });
 
   // Clear input
   els.messageInput.value = "";
@@ -182,14 +396,22 @@ async function sendMessage() {
 
     const data = await response.json();
     const downloadedFiles = data.downloaded_files || [];
-    renderMessage("ai", data.response || "(无回复)", downloadedFiles);
+    const reply = data.response || "(无回复)";
+    renderMessage("ai", reply, downloadedFiles);
+    STATE.currentMessages.push({ role: "ai", content: reply, files: downloadedFiles });
+
+    // Persist after each exchange
+    saveCurrentSession();
+    renderSidebar();
 
     // Clear pending files after successful send
     STATE.pendingFiles = [];
     updateFileBar();
 
   } catch (err) {
-    renderMessage("ai", `⚠️ ${err.message || "网络错误，请检查后端服务"}`);
+    const errMsg = `⚠️ ${err.message || "网络错误，请检查后端服务"}`;
+    renderMessage("ai", errMsg);
+    STATE.currentMessages.push({ role: "ai", content: errMsg });
   } finally {
     STATE.isSending = false;
     els.sendBtn.disabled = false;
@@ -201,53 +423,31 @@ async function sendMessage() {
 }
 
 // ── Render Message ────────────────────────────────────
-function renderMessage(role, content, files) {
+function renderMessage(role, content, files, isRestore) {
   const bubble = document.createElement("div");
   bubble.className = `message ${role}`;
 
-  // Basic Markdown-like rendering:
-  // - Code blocks ```...```
-  // - Inline code `...`
-  // - Bold **...**
-  // - Line breaks
-  let html = escapeHtml(content);
-
-  // Code blocks (must be before inline code)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : "";
-    return `<pre${langClass}><code>${escapeHtml(code.trim())}</code></pre>`;
-  });
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-  // Bold
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-
-  // Paragraphs (double newlines)
-  html = html.replace(/\n\n/g, "</p><p>");
-
-  // Single newlines (within paragraph)
-  html = html.replace(/\n/g, "<br>");
-
-  // Wrap in <p> tags if not already wrapped by code blocks
-  if (!html.startsWith("<pre")) {
-    html = "<p>" + html + "</p>";
+  // Markdown to HTML via marked (full GFM support)
+  let html;
+  if (typeof marked !== "undefined") {
+    html = marked.parse(content);
+  } else {
+    html = escapeHtml(content).replace(/\n/g, "<br>");
   }
-
   bubble.innerHTML = html;
 
-  // Download links
+  // Download links as file chips
   if (files && files.length > 0) {
     const dlDiv = document.createElement("div");
     dlDiv.className = "download-links";
     files.forEach(f => {
       const fileName = f.local.split(/[\\/]/).pop();
-      const a = document.createElement("a");
-      a.href = `/downloads/${encodeURIComponent(fileName)}`;
-      a.download = fileName;
-      a.textContent = `📦 ${fileName}`;
-      dlDiv.appendChild(a);
+      const chip = document.createElement("a");
+      chip.className = "file-chip";
+      chip.href = `/downloads/${encodeURIComponent(fileName)}`;
+      chip.download = fileName;
+      chip.innerHTML = `<span class="chip-name">${escapeHtml(fileName)}</span> <span class="chip-arrow">⬇</span>`;
+      dlDiv.appendChild(chip);
     });
     bubble.appendChild(dlDiv);
   }
@@ -283,7 +483,6 @@ function handleDragEnter(e) {
 
 function handleDragLeave(e) {
   preventDefaults(e);
-  // Only remove if leaving the container entirely
   if (!els.chatContainer.contains(e.relatedTarget)) {
     els.chatContainer.classList.remove("drag-over");
   }
@@ -322,7 +521,7 @@ function bindEvents() {
   // Theme toggle
   els.themeToggle.addEventListener("click", toggleTheme);
 
-  // New session
+  // New session (header button)
   els.newSessionBtn.addEventListener("click", resetSession);
 
   // Drag & drop
@@ -333,6 +532,15 @@ function bindEvents() {
   els.chatContainer.addEventListener("dragover", preventDefaults, false);
   els.chatContainer.addEventListener("dragleave", handleDragLeave, false);
   els.chatContainer.addEventListener("drop", handleDrop, false);
+}
+
+function bindSidebarEvents() {
+  if (els.sidebarToggle) {
+    els.sidebarToggle.addEventListener("click", toggleSidebar);
+  }
+  if (els.newSessionSidebar) {
+    els.newSessionSidebar.addEventListener("click", resetSession);
+  }
 }
 
 // ── Utilities ─────────────────────────────────────────

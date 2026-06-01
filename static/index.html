@@ -9,35 +9,54 @@
 <body>
   <!-- Header -->
   <header id="header">
-    <div class="logo">🤖 My Deep Agent</div>
+    <div class="header-left">
+      <button id="sidebar-toggle" class="icon-btn" title="切换会话列表" aria-label="切换会话列表">☰</button>
+      <div class="logo">🤖 My Deep Agent</div>
+    </div>
     <div class="header-actions">
       <button id="theme-toggle" class="icon-btn" title="切换暗色模式" aria-label="切换暗色模式">🌙</button>
       <button id="new-session" class="icon-btn" title="新会话" aria-label="开始新会话">🆕</button>
     </div>
   </header>
 
-  <!-- Chat Container -->
-  <main id="chat-container">
-    <div id="messages"></div>
-    <div id="loading" class="hidden">
-      <span class="dot-pulse"></span>
-      <span class="loading-text">思考中...</span>
-    </div>
-  </main>
+  <!-- Main Area (sidebar + chat) -->
+  <div id="main">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="collapsed">
+      <div class="sidebar-header">
+        <span class="sidebar-title">会话历史</span>
+        <button id="new-session-sidebar" class="icon-btn" title="新建会话">＋</button>
+      </div>
+      <div id="session-list"></div>
+    </aside>
 
-  <!-- File Preview Bar -->
-  <div id="file-bar" class="hidden">
-    <div id="file-list"></div>
+    <!-- Chat Panel -->
+    <div id="chat-panel">
+      <!-- Chat Container -->
+      <main id="chat-container">
+        <div id="messages"></div>
+        <div id="loading" class="hidden">
+          <span class="dot-pulse"></span>
+          <span class="loading-text">思考中...</span>
+        </div>
+      </main>
+
+      <!-- File Preview Bar -->
+      <div id="file-bar" class="hidden">
+        <div id="file-list"></div>
+      </div>
+
+      <!-- Input Area -->
+      <footer id="input-area">
+        <button id="attach-btn" class="icon-btn" title="上传文件" aria-label="上传文件">📎</button>
+        <input type="file" id="file-input" multiple hidden>
+        <textarea id="message-input" rows="1" placeholder="输入消息..." maxlength="10000" aria-label="消息输入"></textarea>
+        <button id="send-btn" title="发送" aria-label="发送消息">➤</button>
+      </footer>
+    </div>
   </div>
 
-  <!-- Input Area -->
-  <footer id="input-area">
-    <button id="attach-btn" class="icon-btn" title="上传文件" aria-label="上传文件">📎</button>
-    <input type="file" id="file-input" multiple hidden>
-    <textarea id="message-input" rows="1" placeholder="输入消息..." maxlength="10000" aria-label="消息输入"></textarea>
-    <button id="send-btn" title="发送" aria-label="发送消息">➤</button>
-  </footer>
-
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/app.js?v=10"></script>
 </body>
 </html>

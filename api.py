@@ -16,10 +16,12 @@ FastAPI 服务入口 — 将 LangGraph Agent 暴露为 REST API。
 import uuid
 import tempfile
 import shutil
+import zipfile
+import io
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 # 配置由 src.config 在 import 时自动加载 config.env
@@ -37,10 +39,7 @@ _graph = build_graph()
 # 挂载静态文件目录（前端界面）
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 挂载下载目录（沙箱输出文件）
-DOWNLOADS_DIR = Path("downloads")
-DOWNLOADS_DIR.mkdir(exist_ok=True)
-app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
+# 下载端点由 /sessions/{session_id}/downloads/{filename} 动态路由提供
 
 # 会话文件的临时存储根目录
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_deep_agent_uploads"
@@ -126,6 +125,49 @@ async def download_file(session_id: str, filename: str):
     )
 
 
+@app.get("/sessions/{session_id}/downloads/{filename}")
+async def download_session_file(session_id: str, filename: str):
+    """
+    下载指定会话的沙箱输出文件。
+
+    文件路径: downloads/{session_id}/{filename}
+    """
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="非法文件名")
+
+    file_path = Path("downloads") / session_id / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在或已过期")
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="application/octet-stream",
+    )
+
+
+@app.get("/sessions/{session_id}/downloads/zip")
+async def download_session_zip(session_id: str):
+    """
+    将指定会话的所有沙箱输出文件打包为 zip 下载。
+    """
+    session_dir = Path("downloads") / session_id
+    if not session_dir.exists() or not any(session_dir.iterdir()):
+        raise HTTPException(status_code=404, detail="该会话没有可下载的文件")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(session_dir.iterdir()):
+            if f.is_file():
+                zf.write(str(f), arcname=f.name)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={session_id}.zip"},
+    )
+
+
 @app.get("/health")
 async def health():
     """健康检查接口"""
@@ -146,6 +188,8 @@ async def api_info():
         "endpoints": {
             "POST /chat": "发送消息并处理文件",
             "GET /files/{session_id}/{filename}": "下载处理后的文件",
+            "GET /sessions/{session_id}/downloads/{filename}": "下载沙箱输出文件",
+            "GET /sessions/{session_id}/downloads/zip": "批量打包下载沙箱输出文件",
             "GET /health": "健康检查",
         },
     }

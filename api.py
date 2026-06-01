@@ -19,9 +19,10 @@ import shutil
 import time
 import zipfile
 import io
+from typing import Optional
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -126,6 +127,34 @@ async def download_file(session_id: str, filename: str):
     )
 
 
+@app.get("/sessions/{session_id}/downloads/zip")
+async def download_session_zip(session_id: str, files: list[str] = Query([], description="要打包的文件名列表，为空则打包全部")):
+    """
+    将指定会话的沙箱输出文件打包为 zip 下载。
+    可通过 ?files= 指定具体文件名（可重复），不传则打包全部。
+    """
+    session_dir = Path("downloads") / session_id
+    if not session_dir.exists() or not any(session_dir.iterdir()):
+        raise HTTPException(status_code=404, detail="该会话没有可下载的文件")
+
+    # 如果指定了文件名，只打包指定文件
+    target_files = files if files else None
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(session_dir.iterdir()):
+            if f.is_file():
+                if target_files is None or f.name in target_files:
+                    zf.write(str(f), arcname=f.name)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={session_id}.zip"},
+    )
+
+
 @app.get("/sessions/{session_id}/downloads/{filename}")
 async def download_session_file(session_id: str, filename: str):
     """
@@ -143,29 +172,6 @@ async def download_session_file(session_id: str, filename: str):
         path=str(file_path),
         filename=filename,
         media_type="application/octet-stream",
-    )
-
-
-@app.get("/sessions/{session_id}/downloads/zip")
-async def download_session_zip(session_id: str):
-    """
-    将指定会话的所有沙箱输出文件打包为 zip 下载。
-    """
-    session_dir = Path("downloads") / session_id
-    if not session_dir.exists() or not any(session_dir.iterdir()):
-        raise HTTPException(status_code=404, detail="该会话没有可下载的文件")
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(session_dir.iterdir()):
-            if f.is_file():
-                zf.write(str(f), arcname=f.name)
-    buf.seek(0)
-
-    return StreamingResponse(
-        buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={session_id}.zip"},
     )
 
 

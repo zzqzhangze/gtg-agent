@@ -489,13 +489,16 @@ function renderMessage(role, content, files, isRestore) {
       dlDiv.appendChild(chip);
     });
 
-    // 打包下载按钮
+    // 打包下载按钮（只打包本轮对话的文件）
     const sessionId = STATE.sessionId;
+    const fileNames = files.map(f => f.local.split(/[\\/]/).pop());
+    const zipUrl = `/sessions/${encodeURIComponent(sessionId)}/downloads/zip?`
+      + fileNames.map(n => `files=${encodeURIComponent(n)}`).join("&");
     const zipBtn = document.createElement("a");
     zipBtn.className = "file-chip zip-all";
-    zipBtn.href = `/sessions/${encodeURIComponent(sessionId)}/downloads/zip`;
+    zipBtn.href = zipUrl;
     zipBtn.download = `${sessionId}.zip`;
-    zipBtn.title = "打包下载所有文件";
+    zipBtn.title = "打包下载本轮文件";
     zipBtn.innerHTML = `<span class="chip-icon">📦</span><span class="chip-name">打包下载</span><span class="chip-arrow">⬇</span>`;
     dlDiv.appendChild(zipBtn);
 

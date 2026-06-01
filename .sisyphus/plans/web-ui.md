@@ -1,7 +1,7 @@
 # Web UI Implementation Plan
 
-> status: in_progress (v2 — sidebar + session history)
-> branch: feat/web-ui
+> status: ✅ merged to master (ad42340)
+> branch: feat/web-ui (deleted)
 > created: 2026-05-31
 > updated: 2026-06-01
 >

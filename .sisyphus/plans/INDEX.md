@@ -8,7 +8,7 @@
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | approved | P0 | — | 2026-05-29 | 2026-05-31（优先级已更新，剩余方向：三→二→四/六/七） |
-| [web-ui.md](./web-ui.md) | completed (v1) | P1 | feat/web-ui | 2026-05-31 | 2026-05-31 |
+| [web-ui.md](./web-ui.md) | ✅ merged → master (ad42340) | P1 | — | 2026-05-31 | 2026-06-01 |
 
 ## 状态说明
 

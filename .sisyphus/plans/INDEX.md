@@ -8,8 +8,13 @@
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | approved | P0 | — | 2026-05-29 | 2026-05-31（优先级已更新，剩余方向：三→二→四/六/七） |
-| [web-ui.md](./web-ui.md) | ✅ merged → master (ad42340) | P1 | — | 2026-05-31 | 2026-06-01 |
-| [download-optimization.md](./download-optimization.md) | ✅ merged → master (06d7692) | P2 | — | 2026-06-01 | 2026-06-01 |
+
+## 已完成 Plan
+
+| Plan | 状态 | 优先级 | 备注 | 创建日期 | 最后更新 |
+|------|------|--------|------|----------|----------|
+| [web-ui.md](./web-ui.md) | completed | P1 | merged → master (ad42340) | 2026-05-31 | 2026-06-01 |
+| [download-optimization.md](./download-optimization.md) | completed | P2 | merged → master (06d7692) | 2026-06-01 | 2026-06-01 |
 
 ## 状态说明
 

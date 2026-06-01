@@ -48,6 +48,34 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ── Session Persistence ────────────────────────────────
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function getFileIcon(fileName) {
+  const ext = fileName.split(".").pop().toLowerCase();
+  const imgExts = ["png","jpg","jpeg","gif","svg","webp","bmp","ico"];
+  const codeExts = ["py","js","ts","jsx","tsx","java","go","rs","c","cpp","h","css","html","sh","yaml","json","xml"];
+  const dataExts = ["csv","xlsx","xls","json"];
+  const docExts = ["pdf","md","txt","doc","docx"];
+  const archiveExts = ["zip","tar","gz","rar","7z"];
+  if (imgExts.includes(ext)) return "🖼️";
+  if (codeExts.includes(ext)) return "📄";
+  if (dataExts.includes(ext)) return "📊";
+  if (docExts.includes(ext)) return "📝";
+  if (archiveExts.includes(ext)) return "📦";
+  return "📎";
+}
+
 function loadSessionId() {
   let sid = localStorage.getItem("session_id");
   if (!sid) {
@@ -442,11 +470,22 @@ function renderMessage(role, content, files, isRestore) {
     dlDiv.className = "download-links";
     files.forEach(f => {
       const fileName = f.local.split(/[\\/]/).pop();
+      const fileSize = f.size || 0;
+      const summary = f.summary || "";
+      const sessionId = STATE.sessionId;
+
       const chip = document.createElement("a");
       chip.className = "file-chip";
-      chip.href = `/downloads/${encodeURIComponent(fileName)}`;
+      chip.href = `/sessions/${encodeURIComponent(sessionId)}/downloads/${encodeURIComponent(fileName)}`;
       chip.download = fileName;
-      chip.innerHTML = `<span class="chip-name">${escapeHtml(fileName)}</span> <span class="chip-arrow">⬇</span>`;
+      chip.title = summary || fileName;
+
+      const sizeText = formatFileSize(fileSize);
+      chip.innerHTML = `<span class="chip-icon">${getFileIcon(fileName)}</span>`
+        + `<span class="chip-name">${escapeHtml(fileName)}</span>`
+        + (sizeText ? `<span class="chip-size">${sizeText}</span>` : "")
+        + `<span class="chip-arrow">⬇</span>`;
+
       dlDiv.appendChild(chip);
     });
     bubble.appendChild(dlDiv);

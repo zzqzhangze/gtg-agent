@@ -372,6 +372,22 @@ html.dark .message p code {
   border-color: var(--border);
 }
 
+.file-chip .chip-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.file-chip .chip-size {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.file-chip:hover .chip-size {
+  opacity: 0.8;
+}
+
 .file-chip .chip-arrow {
   font-size: 12px;
   opacity: 0.5;

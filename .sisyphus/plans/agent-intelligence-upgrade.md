@@ -1,7 +1,7 @@
 # Agent 智能升级计划
 
 > status: in_progress
-> branch: feat/persistent-memory
+> branch: —
 > created: 2026-05-29
 > updated: 2026-06-01
 
@@ -326,7 +326,7 @@ _LOOP_THREAD = threading.Thread(target=..., daemon=True)  # 永不停止
 | 方向 | 状态 |
 |------|------|
 | 方向一：LLM 意图理解 | ✅ 已合并到 master |
-| 方向四：持久化记忆系统 | ✅ 待合并到 master |
+| 方向四：持久化记忆系统 | ✅ 已合并到 master |
 | 方向五：智能文件处理 | ✅ 已合并到 master |
 | 支线：Web UI | ✅ v1 完成，待合并到 master |
 

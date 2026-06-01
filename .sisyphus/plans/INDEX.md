@@ -7,7 +7,7 @@
 
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
-| [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | in_progress | P0 | feat/persistent-memory | 2026-05-29 | 2026-06-01（方向四实施中） |
+| [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | in_progress | P0 | — | 2026-05-29 | 2026-06-01（方向四 ✅ → master） |
 
 ## 已完成 Plan
 

@@ -16,6 +16,7 @@ FastAPI 服务入口 — 将 LangGraph Agent 暴露为 REST API。
 import uuid
 import tempfile
 import shutil
+import time
 import zipfile
 import io
 from pathlib import Path
@@ -166,6 +167,46 @@ async def download_session_zip(session_id: str):
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={session_id}.zip"},
     )
+
+
+# ── 文件过期清理 ──────────────────────────────────────
+
+def _cleanup_expired_files(max_age_hours: int = 24):
+    """
+    清理 downloads/ 下超过 max_age_hours 的过期文件。
+    在 FastAPI startup 事件中调用。
+    """
+    downloads_root = Path("downloads")
+    if not downloads_root.exists():
+        return
+
+    now = time.time()
+    max_age_seconds = max_age_hours * 3600
+    removed_count = 0
+    removed_size = 0
+
+    for session_dir in downloads_root.iterdir():
+        if not session_dir.is_dir():
+            continue
+        for f in session_dir.iterdir():
+            if f.is_file():
+                age = now - f.stat().st_mtime
+                if age > max_age_seconds:
+                    removed_size += f.stat().st_size
+                    f.unlink()
+                    removed_count += 1
+        # 如果 session 目录空了，删除目录本身
+        if session_dir.exists() and not any(session_dir.iterdir()):
+            session_dir.rmdir()
+
+    if removed_count > 0:
+        print(f"[清理] 已删除 {removed_count} 个过期文件 ({removed_size / 1024:.1f} KB)")
+
+
+@app.on_event("startup")
+async def startup_cleanup():
+    """服务启动时清理过期文件"""
+    _cleanup_expired_files(max_age_hours=24)
 
 
 @app.get("/health")

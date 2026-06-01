@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   initTheme();
+  updateSessionDisplay();
   bindEvents();
 });
 
@@ -37,12 +38,32 @@ function loadSessionId() {
   return sid;
 }
 
+function updateSessionDisplay() {
+  const short = STATE.sessionId.split("-")[0];
+  // Log to console
+  console.log(`[Session] ID: ${STATE.sessionId}（短码: ${short}）`);
+  // Prepend session badge to header-actions
+  let badge = document.getElementById("session-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.id = "session-badge";
+    badge.className = "session-id";
+    const actions = document.querySelector(".header-actions");
+    if (actions) actions.insertBefore(badge, actions.firstChild);
+  }
+  badge.textContent = `会话: ${STATE.sessionId}`;
+  badge.title = `会话 ID: ${STATE.sessionId}`;
+}
+
+
+
 function resetSession() {
   STATE.sessionId = crypto.randomUUID();
   localStorage.setItem("session_id", STATE.sessionId);
   els.messages.innerHTML = "";
   STATE.pendingFiles = [];
   updateFileBar();
+  updateSessionDisplay();
 }
 
 // ── Theme ──────────────────────────────────────────────
@@ -223,10 +244,9 @@ function renderMessage(role, content, files) {
     files.forEach(f => {
       const fileName = f.local.split(/[\\/]/).pop();
       const a = document.createElement("a");
-      a.href = `/files/${STATE.sessionId}/${encodeURIComponent(fileName)}`;
+      a.href = `/downloads/${encodeURIComponent(fileName)}`;
+      a.download = fileName;
       a.textContent = `📦 ${fileName}`;
-      a.target = "_blank";
-      a.rel = "noopener";
       dlDiv.appendChild(a);
     });
     bubble.appendChild(dlDiv);

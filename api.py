@@ -37,6 +37,11 @@ _graph = build_graph()
 # 挂载静态文件目录（前端界面）
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 挂载下载目录（沙箱输出文件）
+DOWNLOADS_DIR = Path("downloads")
+DOWNLOADS_DIR.mkdir(exist_ok=True)
+app.mount("/downloads", StaticFiles(directory=str(DOWNLOADS_DIR)), name="downloads")
+
 # 会话文件的临时存储根目录
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_deep_agent_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

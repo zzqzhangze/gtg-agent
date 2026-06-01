@@ -1,13 +1,9 @@
 # Agent 智能升级计划
 
 > status: approved
-> priority: P0
+> branch: —
 > created: 2026-05-29
-> updated: 2026-05-31 (方向一/五/Web UI 已完成，剩余方向重新排优先)
->
-> 目标：将当前"确定性流水线"架构升级为"自适应智能体循环"
->
-> 子计划注册：`.sisyphus/plans/INDEX.md`
+> updated: 2026-05-31
 
 ---
 

@@ -1,9 +1,11 @@
 # 文件下载优化 Implementation Plan
 
-> status: completed (v1 — merged to master)
+> status: completed
 > branch: feat/download-optimization
 > created: 2026-06-01
 > updated: 2026-06-01
+
+> 分支已删除。
 
 **Goal:** 解决文件下载的 session 隔离、元信息展示、过期清理和批量下载问题
 

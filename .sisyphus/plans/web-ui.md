@@ -1,9 +1,9 @@
 # Web UI Implementation Plan
 
-> status: completed (v1 MVP)
+> status: in_progress (v2 — sidebar + session history)
 > branch: feat/web-ui
 > created: 2026-05-31
-> updated: 2026-05-31
+> updated: 2026-06-01
 >
 > 注册：`.sisyphus/plans/INDEX.md`
 >
@@ -198,7 +198,7 @@ Key message bubble CSS:
 }
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 Open `static/index.html` in browser directly (or via FastAPI) — layout should render, dark mode toggle should work.
 
@@ -315,6 +315,73 @@ Manual test flow:
 ```bash
 git add static/app.js
 git commit -m "feat: implement chat UI - JavaScript interaction logic"
+```
+---
+
+### Task 5: Sidebar + Session History
+
+**Files:**
+- Modify: `static/index.html` (sidebar HTML structure, hamburger button, `#main` wrapper)
+- Modify: `static/style.css` (sidebar layout, collapsible transitions, session items)
+- Modify: `static/app.js` (session history CRUD, sidebar rendering, rename, switch)
+
+- [x] **Step 1: Sidebar HTML structure**
+  - Wrap `#chat-container`, `#file-bar`, `#input-area` in `#chat-panel`
+  - Add `#main` wrapper containing `#sidebar` + `#chat-panel`
+  - Add `#sidebar-toggle` (☰) to header-left
+  - Add `#session-badge` showing short ID (`#a1b2`) in header-actions
+  - Add `#new-session-sidebar` (＋) in sidebar header
+
+- [x] **Step 2: Sidebar CSS**
+  - `#main`: `display: flex`, `flex: 1`, `overflow: hidden`
+  - `#sidebar`: `width: 260px`, collapsible via `.collapsed` class (width 0 → margin-left -260px)
+  - `.sidebar-header`, `.sidebar-title`, `#session-list`
+  - `.session-item`: hover, active state, name/meta/preview styling
+  - `.sess-name[contenteditable]`: editing state visual
+  - Mobile: sidebar covers full screen at <640px
+
+- [x] **Step 3: Session History**
+  - `getSessions()` / `saveSessions()` — localStorage with MAX_SESSIONS=20
+  - `saveCurrentSession()` — save current messages before switch
+  - `loadCurrentMessages()` — restore messages on page load
+  - `switchSession(id)` — save current → load target → re-render
+  - `resetSession()` — save previous session, create new one
+  - Format: `{ id, name, timestamp, firstMessage, messages[] }`
+
+- [x] **Step 4: Sidebar JS**
+  - `renderSidebar()` — iterate sessions (reverse order, newest first)
+  - Double-click rename → `contentEditable` → blur/Enter save → Escape cancel
+  - Click switch → `switchSession(id)` → close sidebar on mobile
+  - `toggleSidebar()` — toggle `.collapsed` class
+  - `getRelativeTime()` — "刚刚", "N分钟前", "N小时前", "N天前"
+  - Auto-save after each message exchange (sendMessage → saveCurrentSession)
+
+- [x] **Step 5: Download link redesign**
+  - File chip style (pill shape, subtle background)
+  - `.file-chip` with `border-radius: 20px`, hover turns accent blue + white text
+  - File name truncated with ellipsis + ⬇ arrow on right
+
+- [x] **Step 6: Markdown rendering (marked.js)**
+  - Download `marked.min.js` to `static/` (v15.0.12, local copy, no CDN dependency)
+  - Add `<script src="/static/marked.min.js">` before app.js in index.html
+  - Replace manual regex markdown with `marked.parse(content)` in renderMessage
+  - Config: `gfm: true, breaks: true` for full GFM + chat-style newlines
+  - Bubble styles: headings, tables, lists, blockquotes, code blocks, links, images, strikethrough
+
+- [x] **Step 7: Message style improvements**
+  - AI bubble: left accent border (`border-left: 3px solid var(--accent)`)
+  - Subtle box shadows on bubbles
+  - Better spacing (`padding: 14px 18px`)
+  - Complete markdown content styling (h1-h6, tables, blockquotes, lists, hr, code, links)
+  - User message overrides for light-on-dark content
+  - Remove `white-space: pre-wrap` (marked handles line breaks)
+
+- [ ] **Step 8: User test** — user will verify before commit
+
+```bash
+# After testing:
+git add static/index.html static/style.css static/app.js static/marked.min.js docs/agent-web-ui-design.md test-reports/web-ui-test-report.md .sisyphus/plans/web-ui.md
+git commit -m "feat: full markdown rendering with marked.js, file-chip download style, message aesthetic improvements"
 ```
 
 ---

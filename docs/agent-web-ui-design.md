@@ -1,8 +1,8 @@
 # Agent Web 聊天界面 — 设计方案
 
-> status: draft
+> status: in_progress (v2)
 > created: 2026-05-31
-> branch: feat/web-ui
+> updated: 2026-06-01
 >
 > 对应 plan: `.sisyphus/plans/agent-intelligence-upgrade.md` — 支线任务（前端可视化交互）
 
@@ -42,7 +42,8 @@
 | CSS 方案 | CSS 自定义属性 (var) | 原生支持暗色模式切换 |
 | HTTP 客户端 | Fetch API (ES6+) | 无额外依赖 |
 | 会话标识 | crypto.randomUUID() | 浏览器原生，无需后端生成 |
-| 持久化 | localStorage | 会话 ID + 暗色偏好 |
+| 持久化 | localStorage | 会话 ID + 暗色偏好 + 会话历史 |
+| 消息格式 | Markdown → marked.parse() | 完整 GFM 支持，`static/marked.min.js` 本地引用（< 30KB），内外网通用 |
 | 消息格式 | Markdown 字符串 → 前端渲染 | 后端已返回纯文本 |
 
 ## 3. 文件结构
@@ -52,7 +53,8 @@ my_deep_agent/
 ├── static/                   ← 新增
 │   ├── index.html            页面骨架
 │   ├── style.css             全部样式 + 暗色模式变量
-│   └── app.js                全部交互逻辑
+│   ├── app.js                全部交互逻辑
+│   └── marked.min.js         Markdown 解析库（本地引用，无网络依赖）
 ├── api.py                    + 修改：挂载 StaticFiles + 根路由
 ```
 
@@ -60,42 +62,64 @@ my_deep_agent/
 
 ## 4. UI 规范
 
-### 4.1 布局
+### 4.1 布局（v2 — 含侧边栏）
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  Header                                          24px│
-│  ┌────────────────────────────────────────────────┐  │
-│  │  🤖 My Deep Agent           🌙  🆕            │  │
-│  └────────────────────────────────────────────────┘  │
-│                                                      │
-│  Chat Area (flex-grow, overflow-y: auto)              │
-│  ┌────────────────────────────────────────────────┐  │
-│  │                                                │  │
-│  │  ┌──────────────────────────────┐              │  │
-│  │  │  用户消息（右对齐，蓝色气泡）    │              │  │
-│  │  └──────────────────────────────┘              │  │
-│  │                                                │  │
-│  │  ┌──────────────────────────────┐              │  │
-│  │  │  AI 回复（左对齐，灰色气泡）   │              │  │
-│  │  │  Markdown 渲染内容            │              │  │
-│  │  │  📦 bubble_sort.py [下载]     │              │  │
-│  │  └──────────────────────────────┘              │  │
-│  │                                                │  │
-│  │              🤔 思考中...                      │  │
-│  │                                                │  │
-│  └────────────────────────────────────────────────┘  │
-│                                                      │
-│  File Preview Bar (可选)                              │
-│  ┌────────────────────────────────────────────────┐  │
-│  │  📎 data.csv  ✕  │  📎 script.py  ✕          │  │
-│  └────────────────────────────────────────────────┘  │
-│                                                      │
-│  Input Area (sticky bottom)                          │
-│  ┌────────────────────────────────────────────────┐  │
-│  │  [📎]  [输入消息...                  ]  [➤ 发送] │  │
-│  └────────────────────────────────────────────────┘  │
+│  Header                                         24px │
+│  ┌────┬──────────────────────────────────────────┐   │
+│  │ ☰  │ 🤖 My Deep Agent       #a1b2  🌙  🆕   │   │
+│  └────┴──────────────────────────────────────────┘   │
+│ ┌───────────┬──────────────────────────────────────┐  │
+│ │  侧边栏   │  聊天区域                              │  │
+│ │  260px    │                                      │  │
+│ │           │  ┌──────────────────────────────┐    │  │
+│ │ 会话历史   │  │  用户消息（右对齐，蓝色气泡）   │    │  │
+│ │ ════════  │  └──────────────────────────────┘    │  │
+│ │           │                                      │  │
+│ │ ◉ a1b2    │  ┌──────────────────────────────┐    │  │
+│ │   自定义名  │  │  AI 回复（左对齐，灰色气泡）    │    │  │
+│ │   10:30    │  │  Markdown 渲染内容            │    │  │
+│ │   首条预览  │  │  bubble_sort.py ⬇ [下载]     │    │  │
+│ │           │  └──────────────────────────────┘    │  │
+│ │ ○ c3d4    │                                      │  │
+│ │   10:15   │  File Preview Bar (可选)              │  │
+│ │           │  ┌──────────────────────────────┐    │  │
+│ │ ＋ 新建    │  │  📎 data.csv ✕  script.py ✕  │    │  │
+│ │           │  └──────────────────────────────┘    │  │
+│ └───────────┴──────────────────────────────────────┘  │
+│  Input Area (sticky bottom)                           │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │ [📎]  [输入消息...                  ] [➤ 发送]   │  │
+│  └─────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────┘
+```
+
+**侧边栏特性：**
+
+- 默认收起（`☰` 汉堡菜单展开）
+- 每个条目显示：自定义名称（可双击编辑）、短 ID、相对时间、首条消息预览
+- 当前会话高亮（`.active`）
+- 点击切换会话，收起时自动恢复
+- 底部或顶部"＋新建"按钮
+- 移动端（<640px）覆盖全屏
+
+**关键 CSS 结构：**
+
+```css
+#main { display: flex; flex: 1; overflow: hidden; }
+
+#sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  transition: width 0.2s, margin-left 0.2s;
+}
+#sidebar.collapsed {
+  width: 0;
+  margin-left: -260px;
+}
+
+#chat-panel { flex: 1; display: flex; flex-direction: column; }
 ```
 
 ### 4.2 暗色模式
@@ -141,20 +165,40 @@ my_deep_agent/
 ```
 后端返回 downloaded_files: [{"sandbox": "...", "local": "..."}]
 前端从 local 路径提取文件名，构造:
-  GET /files/{session_id}/{filename}
-渲染为 <a href="...">📦 bubble_sort.py</a>
+  GET /downloads/{filename}
+渲染为:
+  <a class="file-chip" href="/downloads/{filename}" download="...">
+    <span class="chip-name">{filename}</span> <span class="chip-arrow">⬇</span>
+  </a>
+（圆角 pill 样式，浅灰背景，hover 变蓝底白字）
 ```
 
-### 5.3 会话管理
+### 5.3 会话管理（v2 — localStorage 历史存储）
 
 ```
 页面加载:
-  if (!localStorage.getItem("session_id"))
-    session_id = crypto.randomUUID()
-    localStorage.setItem("session_id", session_id)
+  session_id = localStorage.getItem("session_id") || crypto.randomUUID()
+  sessions  = JSON.parse(localStorage.getItem("sessions")) || []
+  如果 session_id 在 sessions 中 → 恢复消息
+  渲染侧边栏
 
-新会话按钮:
-  生成新 UUID → 存 localStorage → 清空聊天区域
+发送消息后:
+  push {role, content, files} → STATE.currentMessages[]
+  saveCurrentSession() → localStorage "sessions"
+
+切换会话:
+  1. saveCurrentSession() 保存当前会话到 localStorage
+  2. 加载目标会话的 messages → 重新渲染聊天区
+  3. 切换 session_id, 更新侧边栏高亮
+
+会话存储格式:
+  { id: uuid, name: "自定义名称", timestamp: ISO, firstMessage: "首条内容", messages: [...] }
+
+命名:
+  双击侧边栏名称 → contentEditable → blur/Enter 保存 → localStorage 持久化
+
+限制:
+  最多保留 20 个会话，超出后移除最早会话 (FIFO)
 ```
 
 ## 6. 错误处理

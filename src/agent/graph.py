@@ -6,6 +6,7 @@ from src.agent.nodes import (
     create_sandbox,
     upload_files,
     run_agent,
+    run_agent_with_mcp,
     detect_output_files,
     download_files,
     cleanup_sandbox,
@@ -16,11 +17,14 @@ def route_after_analysis(state: SandboxAgentState) -> str:
     """
     自定义的轨道道岔（路由器）：
     根据 task_type 决定下一步路线。
-    chat / compute → 直接 LLM 回复（无需沙箱）
+    chat / compute → 直接 LLM 回复（无需沙箱，无工具）
+    tool_task → MCP 工具调用（无需沙箱，有工具）
     code_exec / data_analysis / multi_step → 创建沙箱
     """
     task_type = state.get("task_type", "chat")
     sandbox_types = {"code_exec", "data_analysis", "multi_step"}
+    if task_type == "tool_task":
+        return "run_agent_with_mcp"
     if task_type in sandbox_types:
         return "create_sandbox"  # 拨向创建沙箱的轨道
     return "run_agent"  # 拨向直接聊天的轨道
@@ -41,6 +45,7 @@ def build_graph(*, checkpointer=None):
     builder.add_node("create_sandbox", create_sandbox)
     builder.add_node("upload_files", upload_files)
     builder.add_node("run_agent", run_agent)
+    builder.add_node("run_agent_with_mcp", run_agent_with_mcp)
     builder.add_node("detect_output_files", detect_output_files)
     builder.add_node("analyze_output_files", analyze_output_files)
     builder.add_node("download_files", download_files)
@@ -56,7 +61,8 @@ def build_graph(*, checkpointer=None):
         route_after_analysis,
         {
             "create_sandbox": "create_sandbox",
-            "run_agent": "run_agent"
+            "run_agent": "run_agent",
+            "run_agent_with_mcp": "run_agent_with_mcp",
         }
     )
 
@@ -65,6 +71,9 @@ def build_graph(*, checkpointer=None):
 
     # 文件上传完，再交给大模型运行
     builder.add_edge("upload_files", "run_agent")
+
+    # MCP 工具执行完，直接走清理（无沙箱，无需文件发现）
+    builder.add_edge("run_agent_with_mcp", "cleanup_sandbox")
 
     # 大模型跑完，自动发现沙箱内新产生的文件
     builder.add_edge("run_agent", "detect_output_files")

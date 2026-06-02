@@ -20,6 +20,7 @@ _INTENT_SYSTEM_PROMPT = """You are an intelligent task intent analyzer. Classify
 
 - chat: Pure conversation, greetings, casual talk. No computation needed.
 - compute: Simple calculation, math, reasoning that LLM can handle directly without sandbox.
+- tool_task: User needs real-time data or external API access via MCP tools (weather queries, database lookups, API queries, etc.). No sandbox needed.
 - code_exec: User needs code to be written and executed. No file upload needed.
 - data_analysis: User uploaded files and needs analysis. Requires sandbox + files.
 - multi_step: Complex project requiring multiple iterations (web app, multi-file project, etc).
@@ -31,7 +32,7 @@ Sandbox templates (only relevant if sandbox is needed):
 
 Respond in JSON format only (no markdown, no code fences):
 {
-    "task_type": "chat|compute|code_exec|data_analysis|multi_step",
+    "task_type": "chat|compute|tool_task|code_exec|data_analysis|multi_step",
     "reasoning": "Brief explanation in Chinese of why this classification",
     "suggested_template": "template_name or null if no sandbox needed",
     "needs_sandbox": true or false
@@ -40,6 +41,8 @@ Respond in JSON format only (no markdown, no code fences):
 Examples:
 User: "你好" -> {"task_type": "chat", "reasoning": "纯问候，无需计算或执行", "suggested_template": null, "needs_sandbox": false}
 User: "25 * 48 等于多少" -> {"task_type": "compute", "reasoning": "简单数学计算，LLM 可直接回答", "suggested_template": null, "needs_sandbox": false}
+User: "查询苏州天气情况" -> {"task_type": "tool_task", "reasoning": "需要实时天气数据，可通过 MCP 工具获取", "suggested_template": null, "needs_sandbox": false}
+User: "查一下数据库里最新的订单" -> {"task_type": "tool_task", "reasoning": "需要查询数据库，可通过 MCP 工具访问", "suggested_template": null, "needs_sandbox": false}
 User: "用Python打印斐波那契数列前20项" -> {"task_type": "code_exec", "reasoning": "需要写代码并执行验证结果", "suggested_template": "python-sandbox", "needs_sandbox": true}
 User: "帮我写一个完整的博客网站" -> {"task_type": "multi_step", "reasoning": "复杂项目需要多轮迭代开发", "suggested_template": "node-sandbox", "needs_sandbox": true}
 User: "分析这个CSV" with uploaded files -> {"task_type": "data_analysis", "reasoning": "需要读取上传的文件进行数据分析", "suggested_template": "data-analysis", "needs_sandbox": true}
@@ -302,7 +305,7 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
         needs_sandbox = parsed.get("needs_sandbox", False)
 
         # 校验 task_type 合法性
-        valid_types = {"chat", "compute", "code_exec", "data_analysis", "multi_step"}
+        valid_types = {"chat", "compute", "tool_task", "code_exec", "data_analysis", "multi_step"}
         if task_type not in valid_types:
             print(f"[意图分析] ⚠️ LLM 返回未知 task_type={task_type}，回退到 chat")
             task_type, needs_sandbox = "chat", False
@@ -445,6 +448,58 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
     # 路线 B：如果账本上没有沙箱，说明只是简单问候，直接盲答
     else:
         print("[Agent 执行] 检测到无沙箱模式，正在以纯文本直接回复...")
+        response = llm.invoke(state["messages"])
+        return {"messages": [response]}
+
+
+def run_agent_with_mcp(state: SandboxAgentState) -> dict[str, Any]:
+    """
+    【车间 9：MCP 工具调用】
+    作用：加载 MCP 工具但不拉起沙箱，用于天气查询、数据库查询等 API 调用场景。
+    返回：把大模型的最终回答追加到账本的 messages 列表里。
+    """
+    llm = ChatOpenAIWithReasoning(
+        base_url=settings.openai_api_base,
+        api_key=settings.openai_api_key,
+        model=settings.model_name,
+        temperature=0.1,
+    )
+
+    # ── MCP tools loading ──
+    mcp_additional_tools: list[BaseTool] = []
+    try:
+        from src.mcp.db import get_enabled_servers
+        from src.mcp.adapter import build_tools_for_server
+
+        for server in get_enabled_servers():
+            tools = build_tools_for_server(server)
+            mcp_additional_tools.extend(tools)
+            if tools:
+                names = [t.name for t in tools]
+                print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
+    except Exception as e:
+        print(f"[MCP] Failed to load MCP tools: {e}")
+
+    if mcp_additional_tools:
+        import uuid
+
+        agent = create_deep_agent(
+            model=llm,
+            tools=mcp_additional_tools,
+            system_prompt=(
+                "You are a helpful assistant with access to external tools via MCP.\n"
+                "Use the available tools to answer the user's question when appropriate."
+            ),
+            checkpointer=MemorySaver(),
+        )
+        thread_id = str(uuid.uuid4())
+        result = agent.invoke(
+            {"messages": state["messages"]},
+            config={"configurable": {"thread_id": thread_id}},
+        )
+        return {"messages": result["messages"]}
+    else:
+        print("[Agent MCP] 无可用 MCP 工具，回退到纯文本回复...")
         response = llm.invoke(state["messages"])
         return {"messages": [response]}
 

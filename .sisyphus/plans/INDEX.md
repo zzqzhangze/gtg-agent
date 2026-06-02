@@ -8,7 +8,7 @@
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
 | [mcp-tool-integration.md](./mcp-tool-integration.md) | draft | P1 | feat/mcp-integration | 2026-06-01 | 2026-06-01 |
-| [skills-system.md](./skills-system.md) | in_progress | P1 | feat/skills-system | 2026-06-01 | 2026-06-02 |
+| [skills-system.md](./skills-system.md) | completed (v1) | P1 | feat/skills-system | 2026-06-01 | 2026-06-02 |
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | in_progress | P0 | — | 2026-05-29 | 2026-06-01（方向四 ✅ → master） |
 
 ## 已完成 Plan

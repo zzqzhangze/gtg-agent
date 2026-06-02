@@ -1,6 +1,6 @@
 # Skills System Implementation Plan
 
-> status: in_progress
+> status: completed (v1)
 > branch: feat/skills-system
 > created: 2026-06-01
 > updated: 2026-06-02
@@ -181,7 +181,7 @@ git commit -m "feat: integrate skills into run_agent"
 - [x] **Step 1: Update AGENTS.md**
 - [x] **Step 2: Update INDEX.md plan status**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit** (0078e8d)
 
 ```bash
 git add AGENTS.md .sisyphus/plans/INDEX.md

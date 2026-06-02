@@ -390,10 +390,24 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
         sb = client.get_sandbox(name=state["sandbox_id"])
         backend = LangSmithBackend(sb)  # 给大模型装上"沙箱机械臂"
 
+        # ── Skills loading ──
+        skills_list: list[dict[str, Any]] = []
+        try:
+            from src.skills.loader import discover_skills, upload_skills_to_sandbox
+
+            skills_list = discover_skills()
+            if skills_list:
+                upload_skills_to_sandbox(backend, skills_list)
+                skill_names = [s["name"] for s in skills_list]
+                print(f"[Skills] Loaded {len(skills_list)} skills: {skill_names}")
+        except Exception as e:
+            print(f"[Skills] Failed to load skills: {e}")
+
         # 组装超级机器人
         agent = create_deep_agent(
             model=llm,
             backend=backend,
+            skills=skills_list or None,
             system_prompt=(
                 "You are a helpful coding assistant with filesystem access via a sandbox.\n\n"
                 "OUTPUT FILES:\n"

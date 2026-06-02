@@ -1,17 +1,15 @@
-# MCP + Skills Integration Implementation Plan
+# MCP Tool Integration Implementation Plan
 
 > status: draft
 > branch: feat/mcp-integration
 > created: 2026-06-01
 > updated: 2026-06-01
 
-**Goal:** Add MCP protocol tool access and SKILL.md-based Skills system to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
+**Goal:** Add MCP protocol tool access to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
 
-**Architecture:**
-- **MCP**: HTTP SSE client → LangChain `BaseTool` adapter → inject via `create_deep_agent(tools=[...])` in `run_agent` node. Server configs stored in SQLite (`.sisyphus/mcp.db`). Web UI manages servers/tools via FastAPI endpoints under `/mcp/`.
-- **Skills**: SKILL.md files stored on host at `.sisyphus/skills/<name>/SKILL.md`. At agent runtime, uploaded to sandbox → deepagents built-in `SkillsMiddleware` loads them via `create_deep_agent(skills=["/workspace/skills/"])`.
+**Architecture:** MCP HTTP SSE client → LangChain `BaseTool` adapter → inject via `create_deep_agent(tools=[...])` in the existing `run_agent` node. Server configs and tool states stored in SQLite (`.sisyphus/mcp.db`). Web UI manages servers/tools via FastAPI endpoints under `/mcp/`.
 
-**Tech Stack:** `httpx` (SSE client), LangChain `BaseTool`, deepagents `SkillsMiddleware`, FastAPI, SQLite3, vanilla HTML/CSS/JS.
+**Tech Stack:** `httpx` (SSE client), LangChain `BaseTool`, FastAPI, SQLite3, vanilla HTML/CSS/JS.
 
 **Design doc:** `docs/mcp-skills-upgrade-design.md`
 
@@ -23,16 +21,14 @@
 |------|--------|---------------|
 | `src/mcp/client.py` | **Create** | MCP HTTP SSE client: connect/disconnect, list_tools, call_tool |
 | `src/mcp/adapter.py` | **Create** | `MCPTool(BaseTool)`: wraps MCP tool as LangChain-compatible tool |
-| `src/mcp/db.py` | **Create** | SQLite CRUD: mcp_servers + mcp_tables, auto-create DB on first use |
+| `src/mcp/db.py` | **Create** | SQLite CRUD: mcp_servers + mcp_tools tables, auto-create DB on first use |
 | `src/mcp/router.py` | **Create** | FastAPI router: 8 MCP management endpoints under `/mcp/` |
-| `src/mcp/skills.py` | **Create** | Skills helper: host → sandbox upload, skill directory scanning |
-| `src/agent/nodes.py` | **Modify** | `run_agent`: load MCP tools + upload skills before `create_deep_agent()` |
+| `src/agent/nodes.py` | **Modify** | `run_agent`: load MCP tools before `create_deep_agent()` |
 | `api.py` | **Modify** | Register MCP router + serve `static/mcp.html` as MCP management page |
 | `static/mcp.html` | **Create** | MCP management page: server list + CRUD dialog + tool toggle table |
 | `static/mcp.js` | **Create** | MCP management page logic: fetch API, CRUD operations, test/sync/toggle |
 | `.sisyphus/plans/INDEX.md` | **Modify** | Register this plan |
-| `AGENTS.md` | **Modify** | Add MCP + Skills workflow and constraint notes |
-| `.sisyphus/skills/` | **Create** | Skills directory on host (SKILL.md files, initially empty) |
+| `AGENTS.md` | **Modify** | Add MCP workflow and constraint notes |
 
 ---
 
@@ -40,16 +36,12 @@
 
 **Files:**
 - Create: `src/mcp/db.py`
+- Create: `src/mcp/__init__.py`
 - Modify: `.sisyphus/plans/INDEX.md`
 
-- [ ] **Step 1: Create `src/mcp/__init__.py`**
+- [ ] **Step 1: Create `src/mcp/__init__.py`** (empty)
 
-```python
-```
-
-- [ ] **Step 2: Write `src/mcp/db.py` with table creation and CRUD**
-
-Create `src/mcp/db.py`:
+- [ ] **Step 2: Write `src/mcp/db.py`**
 
 ```python
 import json
@@ -171,12 +163,6 @@ def upsert_tool(server_id: str, name: str, description: str | None, input_schema
     return dict(row)
 
 
-def delete_tools_by_server(server_id: str) -> None:
-    conn = _get_conn()
-    conn.execute("DELETE FROM mcp_tools WHERE server_id = ?", (server_id,))
-    conn.commit()
-
-
 def set_tool_enabled(tool_id: str, enabled: bool) -> dict[str, Any] | None:
     conn = _get_conn()
     conn.execute("UPDATE mcp_tools SET enabled=? WHERE id=?", (1 if enabled else 0, tool_id))
@@ -185,18 +171,8 @@ def set_tool_enabled(tool_id: str, enabled: bool) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def get_enabled_tools() -> list[dict[str, Any]]:
-    conn = _get_conn()
-    rows = conn.execute(
-        "SELECT t.*, s.name as server_name, s.url as server_url "
-        "FROM mcp_tools t JOIN mcp_servers s ON t.server_id = s.id "
-        "WHERE t.enabled = 1 "
-        "ORDER BY s.name, t.name"
-    ).fetchall()
-    return [dict(r) for r in rows}
-
-
 def get_enabled_servers() -> list[dict[str, Any]]:
+    """Return servers that have at least one enabled tool."""
     conn = _get_conn()
     rows = conn.execute(
         "SELECT DISTINCT s.* FROM mcp_servers s JOIN mcp_tools t ON s.id = t.server_id WHERE t.enabled = 1"
@@ -205,12 +181,6 @@ def get_enabled_servers() -> list[dict[str, Any]]:
 ```
 
 - [ ] **Step 3: Register plan in INDEX.md**
-
-Add to `.sisyphus/plans/INDEX.md` active plans table:
-
-```markdown
-| [mcp-tool-integration.md](./mcp-tool-integration.md) | draft | P1 | feat/mcp-integration | 2026-06-01 | 2026-06-01 |
-```
 
 - [ ] **Step 4: Commit**
 
@@ -227,12 +197,6 @@ git commit -m "feat: add MCP SQLite persistence layer"
 - Create: `src/mcp/client.py`
 
 - [ ] **Step 1: Write `src/mcp/client.py`**
-
-Build the MCP client with:
-- `connect(url, timeout)` — open SSE stream in background thread, negotiate endpoint
-- `list_tools()` — send `tools/list` JSON-RPC, return tool definitions
-- `call_tool(name, args)` — send `tools/call` JSON-RPC, return result
-- `disconnect()` — close SSE thread and HTTP connection
 
 ```python
 import json
@@ -268,20 +232,10 @@ class MCPClient:
         self._connected = False
 
     def connect(self, url: str, timeout: int = 60) -> None:
-        """Establish SSE connection to MCP server.
-
-        Args:
-            url: Full SSE endpoint URL (e.g. http://host:port/sse).
-            timeout: Connection and request timeout in seconds.
-
-        Raises:
-            MCPError: If connection fails or no endpoint event received.
-        """
         self._base_url = url.rstrip("/")
         self._http = httpx.Client(timeout=httpx.Timeout(timeout))
         self._stop_event.clear()
 
-        # Start SSE reader thread
         self._sse_thread = threading.Thread(
             target=self._sse_reader,
             name=f"mcp-sse-{id(self)}",
@@ -289,7 +243,6 @@ class MCPClient:
         )
         self._sse_thread.start()
 
-        # Wait for endpoint event
         try:
             endpoint_event = self._response_queue.get(timeout=timeout)
         except queue.Empty:
@@ -306,7 +259,6 @@ class MCPClient:
         logger.info("MCP connected: post_url=%s", self._post_url)
 
     def disconnect(self) -> None:
-        """Close SSE connection and clean up."""
         self._connected = False
         self._stop_event.set()
         if self._http:
@@ -318,31 +270,16 @@ class MCPClient:
         return self._connected
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """Call tools/list and return tool definitions.
-
-        Returns:
-            List of tool dicts with keys: name, description, inputSchema.
-        """
         result = self._send_request("tools/list")
         return result.get("tools", [])
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
-        """Call a tool on the MCP server.
-
-        Args:
-            name: Tool name.
-            arguments: Tool arguments matching the inputSchema.
-
-        Returns:
-            Tool execution result (result.content list).
-        """
         result = self._send_request("tools/call", {"name": name, "arguments": arguments})
         return result.get("content", [])
 
     # ── Internal ──
 
     def _sse_reader(self) -> None:
-        """Background thread: read SSE event stream."""
         if not self._http:
             return
         try:
@@ -354,7 +291,6 @@ class MCPClient:
                         break
                     line = line.strip()
                     if not line:
-                        # Empty line = end of event
                         continue
                     if line.startswith("event:"):
                         current_event = line[6:].strip()
@@ -370,30 +306,23 @@ class MCPClient:
                                 logger.warning("SSE invalid JSON: %s", data_str[:200])
                         current_event = ""
                     elif line.startswith(":"):
-                        # SSE comment/keepalive
                         pass
         except Exception as exc:
             if not self._stop_event.is_set():
                 logger.error("SSE reader error: %s", exc)
 
     def _send_request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Send JSON-RPC request and wait for response."""
         if not self._http or not self._post_url:
             raise MCPError("Not connected")
 
         req_id = str(uuid.uuid4())
-        body = {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "method": method,
-        }
+        body = {"jsonrpc": "2.0", "id": req_id, "method": method}
         if params:
             body["params"] = params
 
         response = self._http.post(self._post_url, json=body)
         response.raise_for_status()
 
-        # JSON-RPC response may come in SSE stream or HTTP response body
         resp_data = response.json()
         if "error" in resp_data:
             raise MCPError(f"MCP {method} error: {resp_data['error']}")
@@ -416,24 +345,19 @@ git commit -m "feat: add MCP HTTP SSE client"
 
 - [ ] **Step 1: Write `src/mcp/adapter.py`**
 
-Wrap each MCP tool definition as a LangChain `BaseTool`. Dynamically create Pydantic model from JSON Schema `inputSchema`.
-
 ```python
-import json
-from typing import Any, Type
+import logging
+from typing import Any, Optional, Type
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, create_model
 
 from src.mcp.client import MCPClient
 
+logger = logging.getLogger(__name__)
+
 
 def _json_schema_to_pydantic(name: str, schema: dict[str, Any] | None) -> Type[BaseModel]:
-    """Convert JSON Schema to a Pydantic model.
-
-    Handles basic JSON Schema types: string, number, integer, boolean, array, object.
-    Falls back to empty model if schema is None or empty.
-    """
     if not schema or "properties" not in schema:
         return create_model(f"{name}Args")
 
@@ -444,7 +368,6 @@ def _json_schema_to_pydantic(name: str, schema: dict[str, Any] | None) -> Type[B
         json_type = prop_schema.get("type", "string")
         description = prop_schema.get("description", "")
 
-        # Map JSON Schema types to Python types
         type_map = {
             "string": str,
             "number": float,
@@ -455,7 +378,6 @@ def _json_schema_to_pydantic(name: str, schema: dict[str, Any] | None) -> Type[B
         }
         py_type = type_map.get(json_type, str)
 
-        # Handle optional fields
         if prop_name not in required:
             py_type = Optional[py_type]  # type: ignore
             default = None
@@ -476,7 +398,6 @@ class MCPTool(BaseTool):
 
     def _run(self, **kwargs: Any) -> Any:
         result = self.mcp_client.call_tool(self.mcp_tool_name, kwargs)
-        # Extract text content from MCP result content list
         texts = []
         for item in result:
             if isinstance(item, dict) and item.get("type") == "text":
@@ -487,7 +408,6 @@ class MCPTool(BaseTool):
 
     @classmethod
     def from_mcp_definition(cls, client: MCPClient, tool_def: dict[str, Any], server_name: str = "") -> "MCPTool":
-        """Create MCPTool from a MCP tools/list entry."""
         name = tool_def["name"]
         description = tool_def.get("description", "")
         if server_name:
@@ -507,13 +427,9 @@ class MCPTool(BaseTool):
 
 
 def build_tools_for_server(server_config: dict[str, Any]) -> list[BaseTool]:
-    """Connect to an MCP server and wrap all its tools as BaseTool instances.
+    """Connect to MCP server and wrap all its tools as BaseTool instances.
 
-    Args:
-        server_config: Server config dict with keys: id, name, url, timeout.
-
-    Returns:
-        List of BaseTool instances. Empty if connection fails.
+    Returns empty list if connection fails (error logged, agent continues).
     """
     client = MCPClient()
     try:
@@ -538,133 +454,14 @@ git commit -m "feat: add MCPTool BaseTool adapter"
 
 ---
 
-### Task 4: Skills helper — host to sandbox upload
-
-**Files:**
-- Create: `src/mcp/skills.py`
-
-- [ ] **Step 1: Write `src/mcp/skills.py`**
-
-Scans `.sisyphus/skills/` on host for skill directories (each containing `SKILL.md`), uploads them to sandbox, returns the sandbox skills path.
-
-```python
-import json
-import logging
-import os
-from pathlib import Path
-from typing import Any
-
-logger = logging.getLogger(__name__)
-
-SKILLS_HOST_DIR = Path(__file__).resolve().parents[2] / ".sisyphus" / "skills"
-SANDBOX_SKILLS_DIR = "/workspace/skills"
-
-
-def list_host_skills() -> list[dict[str, Any]]:
-    """Scan host .sisyphus/skills/ for skill directories.
-
-    Returns:
-        List of skill metadata: [{name, description, path}]
-        Empty list if skills directory missing or no skills found.
-    """
-    if not SKILLS_HOST_DIR.is_dir():
-        return []
-    skills = []
-    for entry in sorted(SKILLS_HOST_DIR.iterdir()):
-        if not entry.is_dir():
-            continue
-        skill_md = entry / "SKILL.md"
-        if not skill_md.is_file():
-            continue
-        # Parse minimal info from SKILL.md frontmatter
-        try:
-            content = skill_md.read_text("utf-8")
-            meta = _parse_frontmatter(content)
-            skills.append({
-                "name": meta.get("name", entry.name),
-                "description": meta.get("description", ""),
-                "path": str(entry),
-                "files": _collect_skill_files(entry),
-            })
-        except Exception as e:
-            logger.warning("Failed to read skill %s: %s", entry.name, e)
-    return skills
-
-
-def _parse_frontmatter(content: str) -> dict[str, str]:
-    """Basic YAML frontmatter parser (no yaml dependency needed for MVP)."""
-    meta: dict[str, str] = {}
-    if not content.startswith("---"):
-        return meta
-    end = content.find("---", 3)
-    if end == -1:
-        return meta
-    front = content[3:end].strip()
-    for line in front.split("\n"):
-        if ":" in line:
-            key, _, val = line.partition(":")
-            meta[key.strip()] = val.strip()
-    return meta
-
-
-def _collect_skill_files(skill_dir: Path) -> list[tuple[str, bytes]]:
-    """Collect all files in a skill directory as (relative_path, content) pairs."""
-    files = []
-    for f in skill_dir.rglob("*"):
-        if f.is_file():
-            rel = str(f.relative_to(skill_dir))
-            files.append((rel, f.read_bytes()))
-    return files
-
-
-def upload_skills_to_sandbox(sandbox: Any) -> str | None:
-    """Upload all host skills to sandbox and return the sandbox skills path.
-
-    Args:
-        sandbox: Sandbox instance with .write(path, content) method.
-
-    Returns:
-        Sandbox skills base path (e.g. '/workspace/skills/'), or None if no skills.
-    """
-    skills = list_host_skills()
-    if not skills:
-        logger.info("[Skills] No skills found on host at %s", SKILLS_HOST_DIR)
-        return None
-
-    uploaded_count = 0
-    for skill in skills:
-        skill_name = skill["name"]
-        for rel_path, content in skill["files"]:
-            sandbox_path = f"{SANDBOX_SKILLS_DIR}/{skill_name}/{rel_path}"
-            sandbox.write(sandbox_path, content)
-            uploaded_count += 1
-
-    logger.info("[Skills] Uploaded %d files from %d skills to %s",
-                uploaded_count, len(skills), SANDBOX_SKILLS_DIR)
-    return SANDBOX_SKILLS_DIR
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/mcp/skills.py
-git commit -m "feat: add Skills host-to-sandbox upload helper"
-```
-
----
-
-### Task 5: FastAPI router for MCP management
+### Task 4: FastAPI router for MCP management
 
 **Files:**
 - Create: `src/mcp/router.py`
 
 - [ ] **Step 1: Write `src/mcp/router.py`**
 
-8 endpoints for MCP server/tool management.
-
 ```python
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -673,8 +470,6 @@ from src.mcp.client import MCPClient, MCPError
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
-
-# ── Request/Response models ──
 
 class ServerCreate(BaseModel):
     name: str
@@ -691,8 +486,6 @@ class ServerUpdate(BaseModel):
 class ToolToggle(BaseModel):
     enabled: bool
 
-
-# ── Server endpoints ──
 
 @router.get("/servers")
 def list_servers():
@@ -722,7 +515,6 @@ def delete_server(server_id: str):
 
 @router.post("/servers/{server_id}/test")
 def test_server(server_id: str):
-    """Test connection: connect and call tools/list."""
     server = mcp_db.get_server(server_id)
     if not server:
         raise HTTPException(404, f"Server {server_id} not found")
@@ -738,7 +530,6 @@ def test_server(server_id: str):
 
 @router.post("/servers/{server_id}/sync")
 def sync_server_tools(server_id: str):
-    """Fetch tools from server and upsert into DB."""
     server = mcp_db.get_server(server_id)
     if not server:
         raise HTTPException(404, f"Server {server_id} not found")
@@ -762,8 +553,6 @@ def sync_server_tools(server_id: str):
     return {"ok": True, "tools_count": len(synced)}
 
 
-# ── Tool endpoints ──
-
 @router.get("/tools")
 def list_tools(server_id: str | None = None):
     return mcp_db.list_tools(server_id)
@@ -786,19 +575,23 @@ git commit -m "feat: add MCP management API endpoints"
 
 ---
 
-### Task 6: Integrate MCP + Skills into run_agent
+### Task 5: Integrate MCP tools into run_agent
 
 **Files:**
 - Modify: `src/agent/nodes.py`
 
 - [ ] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
 
-Add MCP tool loading and Skills upload before `create_deep_agent()` call. Keep route B unchanged.
-
-Insert after `backend = LangSmithBackend(sb)`:
+Add import at top:
 
 ```python
-        # ── MCP tool loading ──
+from langchain_core.tools import BaseTool
+```
+
+After `backend = LangSmithBackend(sb)`, insert:
+
+```python
+        # ── MCP tools loading ──
         mcp_additional_tools: list[BaseTool] = []
         try:
             from src.mcp.db import get_enabled_servers
@@ -812,50 +605,35 @@ Insert after `backend = LangSmithBackend(sb)`:
                     print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
         except Exception as e:
             print(f"[MCP] Failed to load MCP tools: {e}")
-
-        # ── Skills upload ──
-        mcp_skills_path: str | None = None
-        try:
-            from src.mcp.skills import upload_skills_to_sandbox
-            mcp_skills_path = upload_skills_to_sandbox(sb)
-        except Exception as e:
-            print(f"[Skills] Failed to upload skills: {e}")
 ```
 
-Then change the `create_deep_agent()` call to include both `tools` and `skills`:
+Change `create_deep_agent()` call to add `tools` parameter:
 
 ```python
         agent = create_deep_agent(
             model=llm,
             backend=backend,
             tools=mcp_additional_tools or None,
-            skills=[mcp_skills_path] if mcp_skills_path else None,
             system_prompt=(...),
             checkpointer=MemorySaver(),
         )
-```
-
-Add import at top of `nodes.py`:
-
-```python
-from langchain_core.tools import BaseTool
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add src/agent/nodes.py
-git commit -m "feat: integrate MCP tools and Skills into run_agent"
+git commit -m "feat: integrate MCP tools into run_agent"
 ```
 
 ---
 
-### Task 7: Register routes and MCP management page in API
+### Task 6: Register MCP routes in API
 
 **Files:**
 - Modify: `api.py`
 
-- [ ] **Step 1: Register MCP router in `api.py`**
+- [ ] **Step 1: Register MCP router**
 
 Add after existing imports:
 
@@ -863,13 +641,13 @@ Add after existing imports:
 from src.mcp.router import router as mcp_router
 ```
 
-Add before `if __name__` or after other router registrations:
+Add before `if __name__`:
 
 ```python
 app.include_router(mcp_router)
 ```
 
-Also add a static file route or inline handler to serve `static/mcp.html` at `/mcp/`.
+Also ensure `static/mcp.html` is served (via existing StaticFiles mount or add a new route).
 
 - [ ] **Step 2: Commit**
 
@@ -880,7 +658,7 @@ git commit -m "feat: register MCP API routes in FastAPI"
 
 ---
 
-### Task 8: Web management UI
+### Task 7: Web management UI
 
 **Files:**
 - Create: `static/mcp.html`
@@ -889,7 +667,7 @@ git commit -m "feat: register MCP API routes in FastAPI"
 - [ ] **Step 1: Write `static/mcp.html`**
 
 HTML page with:
-- Server list table (name, URL, timeout, status, action buttons)
+- Server list table (name, URL, timeout, action buttons)
 - Add/Edit server dialog (name, URL, timeout fields)
 - Tool list table (server name, tool name, description, enabled/disabled toggle)
 - Test connection and sync buttons per server
@@ -899,14 +677,12 @@ Style: matching existing `static/style.css` dark theme.
 - [ ] **Step 2: Write `static/mcp.js`**
 
 JavaScript for:
-- Load servers on page load: `GET /mcp/servers`
-- Load tools on page load: `GET /mcp/tools`
-- Add server: `POST /mcp/servers`
-- Edit server: `PUT /mcp/servers/{id}`
-- Delete server: `DELETE /mcp/servers/{id}` (confirm dialog)
+- Load servers: `GET /mcp/servers`
+- Load tools: `GET /mcp/tools`
+- Add/Edit/Delete server: `POST`/`PUT`/`DELETE /mcp/servers/{id}`
 - Test connection: `POST /mcp/servers/{id}/test`
 - Sync tools: `POST /mcp/servers/{id}/sync`
-- Toggle tool: `PUT /mcp/tools/{id}` with `{enabled: true/false}`
+- Toggle tool: `PUT /mcp/tools/{id}`
 
 - [ ] **Step 3: Commit**
 
@@ -917,14 +693,15 @@ git commit -m "feat: add MCP management web UI"
 
 ---
 
-### Task 9: Documentation
+### Task 8: Documentation
 
 **Files:**
 - Modify: `AGENTS.md`
+- Modify: `.sisyphus/plans/INDEX.md`
 
 - [ ] **Step 1: Update AGENTS.md**
 
-Add MCP + Skills constraints and workflow notes to the code constraints section:
+Add MCP constraints:
 
 ```markdown
 ## MCP 工具管理
@@ -933,22 +710,13 @@ Add MCP + Skills constraints and workflow notes to the code constraints section:
 - 仅 HTTP SSE 传输模式，不支持 stdio（所有操作在沙箱内）
 - 启用的工具对所有会话有效，通过 `create_deep_agent(tools=[...])` 注入
 - 新增 MCP server 后需在 Web UI 点击"同步"工具列表
-
-## Skills 管理
-
-- Skills 以 SKILL.md 文件形式存储在宿主机的 `.sisyphus/skills/<name>/` 目录
-- 每次 `run_agent` 自动上传 skills 到沙箱，通过 deepagents `SkillsMiddleware` 加载
-- 技能遵循渐进式披露：agent 先看到名称和描述，需要时通过 `read_file` 读取完整内容
-- 新增/修改 skill 只需在 `.sisyphus/skills/` 下增删 SKILL.md 文件，下次对话自动生效
 ```
 
-- [ ] **Step 2: Update plan INDEX.md status**
-
-Change status from `draft` to `in_progress` (at execution time).
+- [ ] **Step 2: Update INDEX.md plan status**
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add AGENTS.md
-git commit -m "docs: add MCP tool management notes to AGENTS.md"
+git add AGENTS.md .sisyphus/plans/INDEX.md
+git commit -m "docs: add MCP tool management notes"
 ```

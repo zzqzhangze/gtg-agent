@@ -5,37 +5,34 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
 ## 架构
 
 ```
-用户输入 ──→ Web UI (浏览器) ──→ FastAPI /chat ──→ LangGraph Pipeline
-                 │  session_id  │                     │ (SqliteSaver 持久化)
-                 │  隔离会话记忆 │                     ▼
-                 └───────────────────────────── 历史消息自动恢复
-                                                      │
-                 ┌────────────────────────────────────┼─────────────────────────────┐
-                 ▼ chat/compute                    ▼ code_exec                    ▼ data_analysis
-            run_agent (直接 LLM)          create_sandbox (动态选择模板)               / multi_step
-           (Route B, 无沙箱)                     │
-                                     ┌───────────┼───────────┐
-                                     ▼           ▼           ▼
-                               upload_files  Skills  ──  MCP 工具
-                                     │      加载技能   并行加载工具
-                                     ▼
-                               run_agent (DeepAgent)
-                                  (Route A, 有沙箱)
-                                     │
-                                     ▼
-                               detect_output_files
-                                     │
-                                     ▼
-                               analyze_output_files
-                                     │
-                                     ▼
-                               download_files → 浏览器下载
-                                     │
-                                     ▼
-                               cleanup_sandbox
+用户输入 ──→ Web UI ──→ FastAPI /chat ──→ LangGraph Pipeline (SqliteSaver 持久化)
+                                                 │
+                                                 ▼
+                                          analyze_intent
+                                      (LLM 意图分类)
+                                    ┌──────┼──────────┐
+                                    │      │          │
+                                    ▼      ▼          ▼
+                              tool_task  chat/     code_exec/
+                             (MCP工具)  compute   data_analysis/
+                                        (直接LLM)  multi_step
+                                    │      │     (需要沙箱)
+                                    │      │          │
+                                    │      │    create_sandbox
+                                    │      │    upload_files
+                                    │      │    Skills + MCP
+                                    │      │    run_agent(DeepAgent)
+                                    │      │    detect/analyze/download
+                                    │      │          │
+                                    └──┬───┴──────────┘
+                                       ▼
+                                 cleanup_sandbox
+                                       │
+                                       ▼
+                                      END
 ```
 
-> 意图分析使用 LLM 分类，支持 `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
+> 意图分析使用 LLM 分类，支持 `chat` / `compute` / `tool_task` / `code_exec` / `data_analysis` / `multi_step`。
 > 沙箱模板根据任务类型动态选择。对话消息持久化到 `.sisyphus/sessions/`，通过 `session_id` 隔离。
 > Web UI 通过 `GET /` 访问。
 

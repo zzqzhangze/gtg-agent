@@ -11,12 +11,14 @@ class ServerCreate(BaseModel):
     name: str
     url: str
     timeout: int = 60
+    transport_mode: str = "auto"
 
 
 class ServerUpdate(BaseModel):
     name: str | None = None
     url: str | None = None
     timeout: int | None = None
+    transport_mode: str | None = None
 
 
 class ToolToggle(BaseModel):
@@ -30,12 +32,12 @@ def list_servers():
 
 @router.post("/servers", status_code=201)
 def create_server(body: ServerCreate):
-    return mcp_db.create_server(body.name, body.url, body.timeout)
+    return mcp_db.create_server(body.name, body.url, body.timeout, body.transport_mode)
 
 
 @router.put("/servers/{server_id}")
 def update_server(server_id: str, body: ServerUpdate):
-    result = mcp_db.update_server(server_id, body.name, body.url, body.timeout)
+    result = mcp_db.update_server(server_id, body.name, body.url, body.timeout, body.transport_mode)
     if not result:
         raise HTTPException(404, f"Server {server_id} not found")
     return result
@@ -56,7 +58,8 @@ def test_server(server_id: str):
         raise HTTPException(404, f"Server {server_id} not found")
     client = MCPClient()
     try:
-        client.connect(server["url"], server.get("timeout", 60))
+        mode = server.get("transport_mode", "auto")
+        client.connect(server["url"], server.get("timeout", 60), transport_mode=mode)
         tools = client.list_tools()
         client.disconnect()
         return {"ok": True, "tools_count": len(tools), "tools": [t["name"] for t in tools]}
@@ -71,11 +74,14 @@ def sync_server_tools(server_id: str):
         raise HTTPException(404, f"Server {server_id} not found")
     client = MCPClient()
     try:
-        client.connect(server["url"], server.get("timeout", 60))
+        mode = server.get("transport_mode", "auto")
+        client.connect(server["url"], server.get("timeout", 60), transport_mode=mode)
         tools = client.list_tools()
         client.disconnect()
-    except (MCPError, Exception) as e:
-        raise HTTPException(400, f"Sync failed: {e}")
+    except MCPError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(400, f"Sync failed: {e}") from e
 
     synced = []
     for td in tools:

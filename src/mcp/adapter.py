@@ -85,7 +85,8 @@ def build_tools_for_server(server_config: dict[str, Any]) -> list[BaseTool]:
     """
     client = MCPClient()
     try:
-        client.connect(server_config["url"], server_config.get("timeout", 60))
+        mode = server_config.get("transport_mode", "auto")
+        client.connect(server_config["url"], server_config.get("timeout", 60), transport_mode=mode)
         tools_defs = client.list_tools()
         tools = []
         for td in tools_defs:

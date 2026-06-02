@@ -45,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSidebar();
   bindEvents();
   bindSidebarEvents();
+  bindMcpEvents();
 });
 
 // ── Session Persistence ────────────────────────────────
@@ -608,6 +609,188 @@ function handleDrop(e) {
 }
 
 // ── Event Binding ─────────────────────────────────────
+// ── MCP Management ───────────────────────────────────
+const esc = escapeHtml;
+const MCP_API = {
+  listServers:      () => fetch("/mcp/servers").then(r => r.json()),
+  createServer:     (d) => fetch("/mcp/servers", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(d)}).then(r => {if(!r.ok)throw r; return r.json()}),
+  deleteServer:     (id) => fetch(`/mcp/servers/${id}`, {method:"DELETE"}).then(r => {if(!r.ok)throw r; return r.json()}),
+  syncServer:       (id) => fetch(`/mcp/servers/${id}/sync`, {method:"POST"}).then(r => {if(!r.ok)throw r; return r.json()}),
+  listTools:        (sid) => fetch(`/mcp/tools${sid ? `?server_id=${sid}` : ""}`).then(r => r.json()),
+  toggleTool:       (id, e) => fetch(`/mcp/tools/${id}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({enabled:e})}).then(r => {if(!r.ok)throw r; return r.json()}),
+};
+
+function mcpToast(text, type) {
+  const el = document.getElementById("mcp-toast");
+  if (!el) return;
+  el.innerHTML = `<div class="mcp-toast mcp-toast-${type}">${text}</div>`;
+  if (type !== "loading") setTimeout(() => el.innerHTML = "", 4000);
+}
+
+function mcpServerNameFromUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname + (u.port ? `:${u.port}` : "");
+  } catch { return "mcp-server"; }
+}
+
+async function mcpRefresh() {
+  const area = document.getElementById("mcp-server-area");
+  const empty = document.getElementById("mcp-empty");
+  if (!area) return;
+  try {
+    const servers = await MCP_API.listServers();
+    if (!servers.length) {
+      area.innerHTML = ""; empty.style.display = "";
+      return;
+    }
+    empty.style.display = "none";
+
+    // Load all tools in parallel
+    const allTools = await MCP_API.listTools();
+    const toolsByServer = {};
+    for (const t of allTools) {
+      if (!toolsByServer[t.server_id]) toolsByServer[t.server_id] = [];
+      toolsByServer[t.server_id].push(t);
+    }
+
+    area.innerHTML = servers.map(s => {
+      const tools = toolsByServer[s.id] || [];
+      const toolHtml = tools.map(t => `
+        <label class="mcp-tool-row">
+          <span class="mcp-tool-name"><code>${esc(t.name)}</code></span>
+          <span class="mcp-tool-desc">${esc((t.description||"").substring(0,50))}</span>
+          <span class="mcp-toggle">
+            <input type="checkbox" ${t.enabled ? "checked" : ""} data-tid="${t.id}" />
+            <span class="mcp-toggle-track"><span class="mcp-toggle-thumb"></span></span>
+          </span>
+        </label>
+      `).join("");
+
+      return `<div class="mcp-server-card">
+        <div class="mcp-server-top">
+          <span class="mcp-server-name">${esc(s.name)}</span>
+          <span class="mcp-server-url">${esc(s.url)}</span>
+          <button class="mcp-server-del" data-sid="${s.id}" title="断开连接">✕</button>
+        </div>
+        <div class="mcp-server-tools">${toolHtml || '<div class="mcp-no-tools">暂无工具，点同步获取</div>'}</div>
+        <div class="mcp-server-actions">
+          <button class="mcp-sync-btn" data-sid="${s.id}">↻ 同步工具</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    // Bind events for dynamic content
+    area.querySelectorAll(".mcp-server-del").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("断开此 MCP 连接？")) return;
+        try {
+          await MCP_API.deleteServer(btn.dataset.sid);
+          mcpRefresh();
+        } catch { mcpToast("断开失败", "error"); }
+      });
+    });
+    area.querySelectorAll(".mcp-sync-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.textContent = "同步中..."; btn.disabled = true;
+        try {
+          await MCP_API.syncServer(btn.dataset.sid);
+          mcpToast("同步完成", "success");
+          mcpRefresh();
+        } catch { mcpToast("同步失败", "error"); btn.textContent = "↻ 同步工具"; btn.disabled = false; }
+      });
+    });
+    area.querySelectorAll(".mcp-toggle input").forEach(cb => {
+      cb.addEventListener("change", async () => {
+        try { await MCP_API.toggleTool(cb.dataset.tid, cb.checked); }
+        catch { mcpToast("切换失败", "error"); cb.checked = !cb.checked; }
+      });
+    });
+  } catch { area.innerHTML = '<div class="mcp-error-line">加载失败</div>'; }
+}
+
+async function mcpConnect(url) {
+  const btn = document.getElementById("mcp-connect-btn");
+  const mode = document.getElementById("mcp-mode-select").value;
+  btn.textContent = "连接中..."; btn.disabled = true;
+  mcpToast("正在连接...", "loading");
+  try {
+    const name = mcpServerNameFromUrl(url);
+    const server = await MCP_API.createServer({ name, url, timeout: 60, transport_mode: mode });
+    const sync = await MCP_API.syncServer(server.id);
+    mcpToast(`✅ 已连接 ${name}，发现 ${sync.tools_count} 个工具`, "success");
+    document.getElementById("mcp-url-input").value = "";
+    mcpRefresh();
+  } catch (e) {
+    const text = await e.text().catch(() => "未知错误");
+    mcpToast("连接失败: " + text, "error");
+  } finally {
+    btn.textContent = "连接"; btn.disabled = false;
+  }
+}
+
+function bindMcpEvents() {
+  // Toggle panel
+  document.getElementById("mcp-btn")?.addEventListener("click", () => {
+    document.getElementById("mcp-panel").classList.toggle("open");
+    if (document.getElementById("mcp-panel").classList.contains("open")) mcpRefresh();
+  });
+  document.getElementById("mcp-panel-close")?.addEventListener("click", () => {
+    document.getElementById("mcp-panel").classList.remove("open");
+  });
+
+  // Connect: button click + enter key
+  document.getElementById("mcp-connect-btn")?.addEventListener("click", () => {
+    const url = document.getElementById("mcp-url-input").value.trim();
+    if (url) mcpConnect(url);
+  });
+  document.getElementById("mcp-url-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const url = e.target.value.trim();
+      if (url) mcpConnect(url);
+    }
+  });
+
+  // Drag to resize
+  const panel = document.getElementById("mcp-panel");
+  const handle = panel?.querySelector(".mcp-drag-handle");
+  if (!handle) return;
+
+  // Restore saved width
+  const saved = localStorage.getItem("mcp_panel_width");
+  if (saved) panel.style.width = saved + "px";
+
+  let startX = 0, startW = 0;
+  function onMove(e) {
+    const dx = startX - (e.clientX || e.touches?.[0]?.clientX || 0);
+    let w = Math.min(Math.max(startW + dx, 260), Math.min(window.innerWidth - 100, 800));
+    panel.style.width = w + "px";
+  }
+  function onUp() {
+    panel.classList.remove("resizing");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+    localStorage.setItem("mcp_panel_width", parseInt(panel.style.width));
+  }
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    panel.classList.add("resizing");
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+  handle.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startW = panel.offsetWidth;
+    panel.classList.add("resizing");
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", onUp);
+  }, { passive: true });
+}
+
 function bindEvents() {
   // Send
   els.sendBtn.addEventListener("click", sendMessage);

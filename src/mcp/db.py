@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path(__file__).resolve().parents[2] / ".sisyphus" / "mcp.db"
+DB_PATH = Path(__file__).resolve().parents[2] / ".sisyphus" / "mcp" / "mcp.db"
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -24,6 +24,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             name TEXT NOT NULL,
             url TEXT NOT NULL,
             timeout INTEGER DEFAULT 60,
+            transport_mode TEXT DEFAULT 'auto',
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -38,6 +39,11 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             UNIQUE(server_id, name)
         );
     """)
+    # 迁移：旧表没有 transport_mode 列
+    try:
+        conn.execute("ALTER TABLE mcp_servers ADD COLUMN transport_mode TEXT DEFAULT 'auto'")
+    except sqlite3.OperationalError:
+        pass  # 列已存在
 
 
 # ── Servers ──
@@ -54,13 +60,13 @@ def get_server(server_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def create_server(name: str, url: str, timeout: int = 60) -> dict[str, Any]:
+def create_server(name: str, url: str, timeout: int = 60, transport_mode: str = "auto") -> dict[str, Any]:
     conn = _get_conn()
     sid = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
     conn.execute(
-        "INSERT INTO mcp_servers (id, name, url, timeout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (sid, name, url, timeout, now, now),
+        "INSERT INTO mcp_servers (id, name, url, timeout, transport_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (sid, name, url, timeout, transport_mode, now, now),
     )
     conn.commit()
     result = get_server(sid)
@@ -68,7 +74,7 @@ def create_server(name: str, url: str, timeout: int = 60) -> dict[str, Any]:
     return result
 
 
-def update_server(server_id: str, name: str | None = None, url: str | None = None, timeout: int | None = None) -> dict[str, Any] | None:
+def update_server(server_id: str, name: str | None = None, url: str | None = None, timeout: int | None = None, transport_mode: str | None = None) -> dict[str, Any] | None:
     conn = _get_conn()
     existing = get_server(server_id)
     if not existing:
@@ -76,10 +82,11 @@ def update_server(server_id: str, name: str | None = None, url: str | None = Non
     new_name = name if name is not None else existing["name"]
     new_url = url if url is not None else existing["url"]
     new_timeout = timeout if timeout is not None else existing["timeout"]
+    new_transport = transport_mode if transport_mode is not None else existing.get("transport_mode", "auto")
     now = datetime.utcnow().isoformat()
     conn.execute(
-        "UPDATE mcp_servers SET name=?, url=?, timeout=?, updated_at=? WHERE id=?",
-        (new_name, new_url, new_timeout, now, server_id),
+        "UPDATE mcp_servers SET name=?, url=?, timeout=?, transport_mode=?, updated_at=? WHERE id=?",
+        (new_name, new_url, new_timeout, new_transport, now, server_id),
     )
     conn.commit()
     return get_server(server_id)

@@ -287,6 +287,12 @@ async def root():
     """Web UI 入口"""
     return FileResponse("static/index.html")
 
+
+@app.get("/mcp/")
+async def mcp_ui():
+    """MCP 管理页面"""
+    return FileResponse("static/mcp.html")
+
 @app.get("/api-info")
 async def api_info():
     """API 信息（旧根路由挪到 /api-info）"""

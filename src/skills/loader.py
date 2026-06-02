@@ -7,6 +7,20 @@ logger = logging.getLogger(__name__)
 SKILLS_DIR = Path(__file__).resolve().parents[2] / ".sisyphus" / "skills"
 
 
+SA_SKILLS_ROOT = "/home/user/.sisyphus/skills"
+"""Root directory on the sandbox where skill files are uploaded.
+
+Expected structure:
+  {SA_SKILLS_ROOT}/
+    skill-name-1/
+      SKILL.md
+    skill-name-2/
+      SKILL.md
+
+Pass this path in create_deep_agent(skills=[SA_SKILLS_ROOT]).
+"""
+
+
 def discover_skills() -> list[dict[str, Any]]:
     """Scan .sisyphus/skills/ and return list of skill dicts.
 
@@ -31,31 +45,41 @@ def discover_skills() -> list[dict[str, Any]]:
     return skills
 
 
-def upload_skills_to_sandbox(backend: Any, skills: list[dict[str, Any]]) -> list[str]:
-    """Upload SKILL.md files to sandbox via backend.
+def upload_skills_to_sandbox(backend: Any, skills: list[dict[str, Any]]) -> str:
+    """Upload SKILL.md files to sandbox and return the root directory path.
 
-    Returns list of sandbox paths.
+    The returned path can be passed to ``create_deep_agent(skills=[path])``.
+
+    SkillsMiddleware expects this structure on the backend:
+      root/
+        skill-name/
+          SKILL.md
+
+    Args:
+        backend: LangSmithBackend (or equivalent) with upload_files().
+        skills: List of {"name": ..., "content": ...} from discover_skills().
+
+    Returns:
+        Sandbox root path for use with create_deep_agent(skills=[...]).
     """
-    sandbox_paths = []
+    files_to_upload: list[tuple[str, bytes]] = []
     for skill in skills:
-        skill_dir = f"/home/user/.sisyphus/skills/{skill['name']}"
+        skill_dir = f"{SA_SKILLS_ROOT}/{skill['name']}"
         skill_path = f"{skill_dir}/SKILL.md"
+        files_to_upload.append((skill_path, skill["content"].encode("utf-8")))
+        logger.info("Prepared skill '%s' → sandbox:%s", skill["name"], skill_path)
 
-        # Use backend's upload_file if available
-        if hasattr(backend, "upload_file"):
-            backend.upload_file(
-                sandbox_path=skill_path,
-                content=skill["content"],
-            )
-        elif hasattr(backend, "_sandbox") and hasattr(backend._sandbox, "write"):
-            backend._sandbox.write(skill_path, skill["content"])
-        else:
-            logger.warning(
-                "Backend %s does not support file upload, skills may not work",
-                type(backend).__name__,
-            )
+    if files_to_upload and hasattr(backend, "upload_files"):
+        backend.upload_files(files_to_upload)
+    else:
+        # Fallback: write one by one via _sandbox.write()
+        for skill_path, content in files_to_upload:
+            if hasattr(backend, "_sandbox") and hasattr(backend._sandbox, "write"):
+                backend._sandbox.write(skill_path, content)
+            else:
+                logger.warning(
+                    "Backend %s does not support file upload, skills may not work",
+                    type(backend).__name__,
+                )
 
-        sandbox_paths.append(skill_path)
-        logger.info("Uploaded skill '%s' to sandbox: %s", skill["name"], skill_path)
-
-    return sandbox_paths
+    return SA_SKILLS_ROOT

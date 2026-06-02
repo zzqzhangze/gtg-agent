@@ -306,9 +306,170 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
 
 ---
 
-## 7. 兼容性
+## 8. Skills 系统实现
 
-- 所有新增代码在 `src/mcp/` 目录，完全独立于现有逻辑
-- 无 MCP 配置时行为不变（`mcp_additional_tools` 为空列表）
-- DB 文件 `.sisyphus/mcp.db` 不影响现有 `.sisyphus/sessions/` 对话数据库
-- 现有 API 端点完全不变
+> 版本：v1 — 2026-06-02 实施完成
+
+### 8.1 架构
+
+```
+宿主机                         沙箱
+───────                       ────────
+.sisyphus/skills/             /home/user/.sisyphus/skills/
+  ├── python-output/            ├── python-output/
+  │   └── SKILL.md     ──upload──└── SKILL.md
+  └── web-research/             └── web-research/
+      └── SKILL.md                  └── SKILL.md
+                                        │
+                                  SkillsMiddleware
+                                  ├── backend.ls() 扫描子目录
+                                  ├── backend.download_files() 读 SKILL.md
+                                  └── 解析 YAML frontmatter → 注入 system prompt
+                                        │
+                                  create_deep_agent(skills=[SA_SKILLS_ROOT])
+```
+
+### 8.2 组件
+
+#### `src/skills/loader.py`
+
+两个函数 + 一个常量：
+
+| 符号 | 作用 |
+|------|------|
+| `SA_SKILLS_ROOT = "/home/user/.sisyphus/skills"` | 沙箱内技能文件根目录 |
+| `discover_skills()` | 扫描宿主机 `.sisyphus/skills/*/SKILL.md`，返回 `[{name, content}]` |
+| `upload_skills_to_sandbox(backend, skills)` | 调用 `backend.upload_files()` 上传到沙箱，返回根路径 |
+
+`discover_skills()` 在宿主机执行（`run_agent` 节点内），读本地文件系统。结果传给 `upload_skills_to_sandbox()` 上传到沙箱。
+
+#### `src/agent/nodes.py` — 集成点
+
+在 `create_deep_agent()` 调用前插入：
+
+```python
+# ── Skills loading ──
+sa_skills_root: str | None = None
+try:
+    from src.skills.loader import discover_skills, upload_skills_to_sandbox
+    skills_list = discover_skills()
+    if skills_list:
+        sa_skills_root = upload_skills_to_sandbox(backend, skills_list)
+        skill_names = [s["name"] for s in skills_list]
+        print(f"[Skills] Loaded {len(skills_list)} skills: {skill_names}")
+except Exception as e:
+    print(f"[Skills] Failed to load skills: {e}")
+
+agent = create_deep_agent(
+    model=llm,
+    backend=backend,
+    skills=[sa_skills_root] if sa_skills_root else None,
+    ...
+)
+```
+
+关键：`create_deep_agent(skills=...)` 接受 `list[str]`（沙箱内目录路径），不是 `list[dict]`。
+
+### 8.3 SkillsMiddleware 运行机制
+
+SkillsMiddleware 是 deepagents 原生中间件，注册在 agent 的 middleware 栈中。
+
+**加载阶段**（`before_agent`，每会话一次）：
+
+```
+skills=[SA_SKILLS_ROOT]
+  │
+  ├─ backend.ls(SA_SKILLS_ROOT)
+  │     → 返回子目录列表: ["python-output/", "web-research/"]
+  │
+  ├─ backend.download_files(["python-output/SKILL.md", "web-research/SKILL.md"])
+  │     → 读取每个 SKILL.md 的原始内容
+  │
+  ├─ 解析 YAML frontmatter（正则匹配 ^---\\n(.*?)\\n---\\n）
+  │     → 提取 name / description / allowed-tools / metadata 等
+  │
+  └─ 存入 state["skills_metadata"] 供后续使用
+```
+
+**注入阶段**（`before_model`，每次 LLM 调用）：
+
+```
+state["skills_metadata"]
+  └─ _format_skills_list()
+       → 格式化为 system prompt 片段:
+
+          ## Skills System
+          ...
+          **Available Skills:**
+          - **python-output**: Best practices for formatting Python script output
+            -> Read /home/user/.sisyphus/skills/python-output/SKILL.md for full instructions
+          ...
+          
+          **How to Use Skills (Progressive Disclosure):**
+          1. Recognize when a skill applies
+          2. Read the skill's full instructions: use read_file on the path
+          3. Follow the skill's instructions
+```
+
+**渐进式披露**设计要点：
+- 技能正文**不会**自动注入 system prompt（避免 token 膨胀）
+- agent 根据任务自主判断是否需要读哪个技能文件
+- 需要 agent 主动调用 `read_file(path)` 来获取完整指令
+
+### 8.4 SKILL.md 格式要求
+
+```markdown
+---
+name: python-output
+description: Best practices for formatting Python script output in sandbox
+# 可选字段：
+# allowed-tools:
+#   - read_file
+#   - write_file
+# metadata:
+#   author: team-x
+# compatibility: ">=0.6.0"
+# license: MIT
+---
+
+# Skill Title
+
+## Instructions
+(技能正文，agent 读取后执行的指令)
+```
+
+**必须字段：**
+- `name` — 技能名称，用于在 system prompt 中标识
+- `description` — 技能描述，agent 据此判断技能是否适用
+
+**约束：**
+- `name` ≤ 100 字符
+- `description` ≤ 200 字符
+- SKILL.md 总大小 ≤ 64KB
+- `allowed-tools` 限定技能可用的工具名列表（可选）
+
+### 8.5 边界场景
+
+| 场景 | 处理 |
+|------|------|
+| `.sisyphus/skills/` 不存在 | `discover_skills()` 返回 `[]`，静默跳过 |
+| 目录下没有 SKILL.md | 记录 warning，跳过该目录 |
+| YAML frontmatter 缺少 name/description | 记录 warning，跳过该技能 |
+| SKILL.md 编码非 UTF-8 | 记录 warning，跳过 |
+| `backend.upload_files()` 不支持 | fallback 走 `_sandbox.write()` |
+| backend 不支持文件上传 | 记录 warning，技能不影响 agent 运行 |
+| 同名技能 | 后加载的覆盖先加载的（SkillsMiddleware 内部 `dict` 去重） |
+
+### 8.6 与 MCP 的关系
+
+Skills 和 MCP 是两个独立的系统，在 `run_agent` 节点中并行加载：
+
+```
+run_agent:
+  ├── MCP 工具加载 → tools=[mcp_tools] (src/mcp/)
+  ├── Skills 加载  → skills=[sa_skills_root] (src/skills/)
+  └── create_deep_agent(tools=..., skills=..., ...)
+```
+
+互不依赖，互不阻塞。一个失败不影响另一个。
+

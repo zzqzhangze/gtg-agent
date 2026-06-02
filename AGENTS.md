@@ -100,3 +100,21 @@ CLAUDE.md > AGENTS.md > README.md > 代码注释
 - agent 运行时自动上传到沙箱并注入 `create_deep_agent(skills=...)`
 - 技能通过 DeepAgents 原生 SkillsMiddleware 生效
 - 新增技能只需在 `.sisyphus/skills/` 下创建目录 + SKILL.md，无需重启服务
+
+### 实现原理
+
+```
+宿主 .sisyphus/skills/<name>/SKILL.md
+  → discover_skills() 读取（返回 [{name, content}]）
+    → upload_skills_to_sandbox() 上传到沙箱
+      → SkillsMiddleware.ls() + download_files() 加载
+        → 解析 YAML frontmatter → 注入 system prompt
+          → agent 自主判断是否需要读 SKILL.md 文件
+```
+
+### 重要约束
+
+- SKILL.md **必须**以 `---` YAML frontmatter 开头，至少包含 `name` 和 `description` 字段
+- SkillsMiddleware 是**渐进式披露**设计：只在 system prompt 列出技能名+描述+路径，agent 自主决定是否读取完整内容
+- 技能内容不会自动注入 system prompt，agent 需主动调用文件读取工具来读 SKILL.md
+- 技能在每次 `run_agent`（有沙箱的路径）时重新加载，不缓存

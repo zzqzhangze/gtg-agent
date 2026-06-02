@@ -442,6 +442,132 @@ function updateFileBar() {
   });
 }
 
+// ── Execution Timeline (执行日志) ──────────────────
+function addLogEntry(message) {
+  const log = document.getElementById("execution-log");
+  if (!log) return;
+  const entry = document.createElement("div");
+  entry.className = "log-entry active";
+  entry.innerHTML =
+    '<span class="log-icon">⏳</span>' +
+    '<span class="log-text">' + escapeHtml(message) + '</span>' +
+    '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function completeActiveEntry() {
+  const log = document.getElementById("execution-log");
+  if (!log) return;
+  const active = log.querySelector(".log-entry.active");
+  if (!active) return;
+  active.classList.remove("active");
+  active.classList.add("completed");
+  const icon = active.querySelector(".log-icon");
+  if (icon) icon.textContent = "✅";
+  const dots = active.querySelector(".typing-dots");
+  if (dots) dots.remove();
+}
+
+function setDetailText(text) {
+  const log = document.getElementById("execution-log");
+  if (!log) return;
+  // 优先查看当前 active 条目，否则看上一条已完成的
+  const target = log.querySelector(".log-entry.active") || log.lastElementChild;
+  if (!target) return;
+  let detail = target.querySelector(".log-detail");
+  if (!detail) {
+    detail = document.createElement("div");
+    detail.className = "log-detail";
+    target.appendChild(detail);
+  }
+  detail.textContent = text;
+}
+
+function clearExecutionLog() {
+  const log = document.getElementById("execution-log");
+  if (log) log.innerHTML = "";
+}
+
+function finalizeExecutionLog(isError) {
+  const log = document.getElementById("execution-log");
+  if (!log || log.children.length === 0) return;
+
+  const steps = log.innerHTML;  // 保存日志内容
+  const stepCount = (steps.match(/log-entry/g) || []).length;
+  log.innerHTML = "";            // 清空
+
+  // 构建折叠块
+  const container = document.createElement("div");
+  container.className = "execution-summary";
+
+  const toggle = document.createElement("button");
+  toggle.className = "execution-toggle";
+  toggle.innerHTML = '<span class="toggle-icon">▼</span> 执行链路（' + stepCount + '步）';
+
+  const body = document.createElement("div");
+  body.className = "execution-steps open";
+  body.innerHTML = steps;
+
+  // 错误场景打标
+  if (isError) {
+    toggle.innerHTML = '<span class="toggle-icon">▼</span> ⚠️ 执行出错';
+    body.classList.add("has-error");
+  }
+
+  toggle.addEventListener("click", () => {
+    const icon = toggle.querySelector(".toggle-icon");
+    body.classList.toggle("open");
+    icon.textContent = body.classList.contains("open") ? "▼" : "▶";
+  });
+
+  container.appendChild(toggle);
+  container.appendChild(body);
+  els.messages.appendChild(container);
+  scrollToBottom();
+}
+
+// ── SSE Event Handling ───────────────────────────────
+function handleSSEEvent(data) {
+  if (data.type === "status") {
+    if (data.phase === "intent_result") {
+      // 意图结果作为上一步的详情
+      setDetailText(data.message);
+    } else {
+      // 新步骤：完成上一步，创建当前步
+      completeActiveEntry();
+      addLogEntry(data.message);
+    }
+  } else if (data.type === "done") {
+    // 标记最后一步完成
+    completeActiveEntry();
+    // 将执行日志固化为折叠块插入对话区
+    finalizeExecutionLog(false);
+    // 渲染最终回复
+    const reply = data.data.response || "(无回复)";
+    const downloadedFiles = data.data.downloaded_files || [];
+    renderMessage("ai", reply, downloadedFiles);
+    STATE.currentMessages.push({ role: "ai", content: reply, files: downloadedFiles });
+    saveCurrentSession();
+    renderSidebar();
+    STATE.pendingFiles = [];
+    updateFileBar();
+  } else if (data.type === "error") {
+    completeActiveEntry();
+    // 错误步骤打红叉
+    const log = document.getElementById("execution-log");
+    if (log && log.lastElementChild) {
+      const icon = log.lastElementChild.querySelector(".log-icon");
+      if (icon) icon.textContent = "❌";
+    }
+    // 将执行日志固化为折叠块（错误标记）
+    finalizeExecutionLog(true);
+    const errMsg = `⚠️ ${data.data.message || "执行出错"}`;
+    renderMessage("ai", errMsg);
+    STATE.currentMessages.push({ role: "ai", content: errMsg });
+  }
+}
+
 // ── Send Message ──────────────────────────────────────
 async function sendMessage() {
   const text = els.messageInput.value.trim();
@@ -451,6 +577,7 @@ async function sendMessage() {
   els.sendBtn.disabled = true;
   els.messageInput.disabled = true;
   els.loading.classList.remove("hidden");
+  clearExecutionLog();
 
   // Show user message immediately
   renderMessage("user", text);
@@ -483,19 +610,40 @@ async function sendMessage() {
       throw new Error(errorMsg);
     }
 
-    const data = await response.json();
-    const downloadedFiles = data.downloaded_files || [];
-    const reply = data.response || "(无回复)";
-    renderMessage("ai", reply, downloadedFiles);
-    STATE.currentMessages.push({ role: "ai", content: reply, files: downloadedFiles });
+    // SSE 流式读取
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    // Persist after each exchange
-    saveCurrentSession();
-    renderSidebar();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // Clear pending files after successful send
-    STATE.pendingFiles = [];
-    updateFileBar();
+      buffer += decoder.decode(value, { stream: true });
+
+      // 按 SSE 事件边界分割（双换行）
+      const parts = buffer.split("\n");
+      buffer = parts.pop() || "";  // 不完整的行留在 buffer
+
+      for (const line of parts) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleSSEEvent(data);
+          } catch (_) {
+            // 忽略畸形的 JSON
+          }
+        }
+      }
+    }
+
+    // 处理最后可能残留的 SSE 事件
+    if (buffer.startsWith("data: ")) {
+      try {
+        const data = JSON.parse(buffer.slice(6));
+        handleSSEEvent(data);
+      } catch (_) {}
+    }
 
   } catch (err) {
     const errMsg = `⚠️ ${err.message || "网络错误，请检查后端服务"}`;

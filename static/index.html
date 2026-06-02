@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Deep Agent</title>
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <!-- Header -->
@@ -26,7 +26,7 @@
     <aside id="sidebar" class="collapsed">
       <div class="sidebar-header">
         <span class="sidebar-title">会话历史</span>
-        <button id="new-session-sidebar" class="icon-btn" title="新建会话">＋</button>
+        <button id="new-session-sidebar" class="new-session-btn sidebar" title="新建会话">＋ 新会话</button>
       </div>
       <div id="session-list"></div>
     </aside>
@@ -36,8 +36,20 @@
       <!-- Chat Container -->
       <main id="chat-container">
         <div id="messages"></div>
+        <div id="welcome">
+          <div class="welcome-icon">🤖</div>
+          <h1>My Deep Agent</h1>
+          <p>开始对话，或试试以下示例：</p>
+          <div class="welcome-suggestions">
+            <button class="suggestion-chip" data-prompt="帮我分析这份数据">📊 分析数据</button>
+            <button class="suggestion-chip" data-prompt="读取并总结一个文件">📝 总结文件</button>
+            <button class="suggestion-chip" data-prompt="帮我写一段 Python 代码">💻 写代码</button>
+          </div>
+        </div>
         <div id="loading" class="hidden">
-          <span class="dot-pulse"></span>
+          <div class="typing-indicator">
+            <span></span><span></span><span></span>
+          </div>
           <span class="loading-text">思考中...</span>
         </div>
       </main>
@@ -91,6 +103,6 @@
   </div>
 
   <script src="/static/marked.min.js"></script>
-  <script src="/static/app.js?v=11"></script>
+  <script src="/static/app.js?v=12"></script>
 </body>
 </html>

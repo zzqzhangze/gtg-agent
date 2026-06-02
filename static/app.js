@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   els = {
     messages: document.getElementById("messages"),
     loading: document.getElementById("loading"),
+    welcome: document.getElementById("welcome"),
     fileBar: document.getElementById("file-bar"),
     fileList: document.getElementById("file-list"),
     fileInput: document.getElementById("file-input"),
@@ -46,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   bindSidebarEvents();
   bindMcpEvents();
+  bindWelcomeEvents();
 });
 
 // ── Session Persistence ────────────────────────────────
@@ -177,6 +179,7 @@ function resetSession() {
   });
   saveSessions(sessions);
   renderSidebar();
+  updateWelcomeVisibility();
 }
 
 // ── Sidebar ────────────────────────────────────────────
@@ -301,6 +304,7 @@ function switchSession(targetId) {
   if (window.innerWidth <= 640) {
     els.sidebar.classList.add("collapsed");
   }
+  updateWelcomeVisibility();
 }
 
 async function deleteSession(sessionId, isCurrentSession) {
@@ -507,6 +511,26 @@ async function sendMessage() {
   }
 }
 
+// ── Welcome State ─────────────────────────────────────
+function updateWelcomeVisibility() {
+  if (!els.welcome) return;
+  const hasMessages = els.messages && els.messages.children.length > 0;
+  els.welcome.classList.toggle("hidden", hasMessages);
+}
+
+function bindWelcomeEvents() {
+  document.querySelectorAll(".suggestion-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const prompt = btn.dataset.prompt;
+      if (prompt && els.messageInput) {
+        els.messageInput.value = prompt;
+        els.messageInput.focus();
+        autoResizeTextarea();
+      }
+    });
+  });
+}
+
 // ── Render Message ────────────────────────────────────
 function renderMessage(role, content, files, isRestore) {
   const bubble = document.createElement("div");
@@ -563,6 +587,7 @@ function renderMessage(role, content, files, isRestore) {
   }
 
   els.messages.appendChild(bubble);
+  updateWelcomeVisibility();
   scrollToBottom();
 }
 

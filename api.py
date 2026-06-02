@@ -32,6 +32,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 # 配置由 src.config 在 import 时自动加载 config.env
 from src.agent.graph import build_graph
+from src.mcp.router import router as mcp_router
 
 # Windows GBK 终端兼容
 if hasattr(sys.stdout, "reconfigure"):
@@ -75,6 +76,9 @@ _graph = build_graph(checkpointer=_saver)
 
 # 挂载静态文件目录（前端界面）
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 注册 MCP 管理路由
+app.include_router(mcp_router)
 
 # 下载端点由 /sessions/{session_id}/downloads/{filename} 动态路由提供
 

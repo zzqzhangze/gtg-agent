@@ -4,6 +4,7 @@ import os
 from typing import Any
 from deepagents import create_deep_agent
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import MemorySaver
 
 from src.config import settings
@@ -403,11 +404,27 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
         except Exception as e:
             print(f"[Skills] Failed to load skills: {e}")
 
+        # ── MCP tools loading ──
+        mcp_additional_tools: list[BaseTool] = []
+        try:
+            from src.mcp.db import get_enabled_servers
+            from src.mcp.adapter import build_tools_for_server
+
+            for server in get_enabled_servers():
+                tools = build_tools_for_server(server)
+                mcp_additional_tools.extend(tools)
+                if tools:
+                    names = [t.name for t in tools]
+                    print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
+        except Exception as e:
+            print(f"[MCP] Failed to load MCP tools: {e}")
+
         # 组装超级机器人
         agent = create_deep_agent(
             model=llm,
             backend=backend,
             skills=[sa_skills_root] if sa_skills_root else None,
+            tools=mcp_additional_tools or None,
             system_prompt=(
                 "You are a helpful coding assistant with filesystem access via a sandbox.\n\n"
                 "OUTPUT FILES:\n"

@@ -118,3 +118,11 @@ CLAUDE.md > AGENTS.md > README.md > 代码注释
 - SkillsMiddleware 是**渐进式披露**设计：只在 system prompt 列出技能名+描述+路径，agent 自主决定是否读取完整内容
 - 技能内容不会自动注入 system prompt，agent 需主动调用文件读取工具来读 SKILL.md
 - 技能在每次 `run_agent`（有沙箱的路径）时重新加载，不缓存
+
+## MCP 工具管理
+
+- MCP server 配置通过 Web UI（`/mcp/`）管理，持久化在 `.sisyphus/mcp.db`
+- 仅 HTTP SSE 传输模式，不支持 stdio（所有操作在沙箱外，Agent 框架侧）
+- 启用的工具对所有会话有效，通过 `create_deep_agent(tools=[...])` 注入
+- 新增 MCP server 后需在 Web UI 点击"同步"拉取工具列表，再启用需要的工具
+- `run_agent` 节点中 MCP 和 Skills 并行加载，互不阻塞

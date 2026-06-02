@@ -1,9 +1,9 @@
 # MCP Tool Integration Implementation Plan
 
-> status: draft
+> status: completed (v1)
 > branch: feat/mcp-integration
 > created: 2026-06-01
-> updated: 2026-06-01
+> updated: 2026-06-02
 
 **Goal:** Add MCP protocol tool access to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
 
@@ -17,18 +17,18 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `src/mcp/client.py` | **Create** | MCP HTTP SSE client: connect/disconnect, list_tools, call_tool |
-| `src/mcp/adapter.py` | **Create** | `MCPTool(BaseTool)`: wraps MCP tool as LangChain-compatible tool |
-| `src/mcp/db.py` | **Create** | SQLite CRUD: mcp_servers + mcp_tools tables, auto-create DB on first use |
-| `src/mcp/router.py` | **Create** | FastAPI router: 8 MCP management endpoints under `/mcp/` |
-| `src/agent/nodes.py` | **Modify** | `run_agent`: load MCP tools before `create_deep_agent()` |
-| `api.py` | **Modify** | Register MCP router + serve `static/mcp.html` as MCP management page |
-| `static/mcp.html` | **Create** | MCP management page: server list + CRUD dialog + tool toggle table |
-| `static/mcp.js` | **Create** | MCP management page logic: fetch API, CRUD operations, test/sync/toggle |
-| `.sisyphus/plans/INDEX.md` | **Modify** | Register this plan |
-| `AGENTS.md` | **Modify** | Add MCP workflow and constraint notes |
+| File | Action | Status |
+|------|--------|--------|
+| `src/mcp/client.py` | **Create** | ✅ |
+| `src/mcp/adapter.py` | **Create** | ✅ |
+| `src/mcp/db.py` | **Create** | ✅ |
+| `src/mcp/router.py` | **Create** | ✅ |
+| `src/agent/nodes.py` | **Modify** | ✅ |
+| `api.py` | **Modify** | ✅ |
+| `static/mcp.html` | **Create** | ✅ |
+| `static/mcp.js` | **Create** | ✅ |
+| `.sisyphus/plans/INDEX.md` | **Modify** | ✅ |
+| `AGENTS.md` | **Modify** | ✅ |
 
 ---
 
@@ -39,9 +39,9 @@
 - Create: `src/mcp/__init__.py`
 - Modify: `.sisyphus/plans/INDEX.md`
 
-- [ ] **Step 1: Create `src/mcp/__init__.py`** (empty)
+- [x] **Step 1: Create `src/mcp/__init__.py`** (empty)
 
-- [ ] **Step 2: Write `src/mcp/db.py`**
+- [x] **Step 2: Write `src/mcp/db.py`**
 
 ```python
 import json
@@ -180,9 +180,9 @@ def get_enabled_servers() -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 ```
 
-- [ ] **Step 3: Register plan in INDEX.md**
+- [x] **Step 3: Register plan in INDEX.md**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/mcp/__init__.py src/mcp/db.py .sisyphus/plans/INDEX.md
@@ -196,7 +196,7 @@ git commit -m "feat: add MCP SQLite persistence layer"
 **Files:**
 - Create: `src/mcp/client.py`
 
-- [ ] **Step 1: Write `src/mcp/client.py`**
+- [x] **Step 1: Write `src/mcp/client.py`**
 
 ```python
 import json
@@ -329,7 +329,7 @@ class MCPClient:
         return resp_data.get("result", {})
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/mcp/client.py
@@ -343,7 +343,7 @@ git commit -m "feat: add MCP HTTP SSE client"
 **Files:**
 - Create: `src/mcp/adapter.py`
 
-- [ ] **Step 1: Write `src/mcp/adapter.py`**
+- [x] **Step 1: Write `src/mcp/adapter.py`**
 
 ```python
 import logging
@@ -445,7 +445,7 @@ def build_tools_for_server(server_config: dict[str, Any]) -> list[BaseTool]:
         return []
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/mcp/adapter.py
@@ -459,7 +459,7 @@ git commit -m "feat: add MCPTool BaseTool adapter"
 **Files:**
 - Create: `src/mcp/router.py`
 
-- [ ] **Step 1: Write `src/mcp/router.py`**
+- [x] **Step 1: Write `src/mcp/router.py`**
 
 ```python
 from fastapi import APIRouter, HTTPException
@@ -566,7 +566,7 @@ def toggle_tool(tool_id: str, body: ToolToggle):
     return result
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/mcp/router.py
@@ -580,7 +580,7 @@ git commit -m "feat: add MCP management API endpoints"
 **Files:**
 - Modify: `src/agent/nodes.py`
 
-- [ ] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
+- [x] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
 
 Add import at top:
 
@@ -619,7 +619,7 @@ Change `create_deep_agent()` call to add `tools` parameter:
         )
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add src/agent/nodes.py
@@ -633,7 +633,7 @@ git commit -m "feat: integrate MCP tools into run_agent"
 **Files:**
 - Modify: `api.py`
 
-- [ ] **Step 1: Register MCP router**
+- [x] **Step 1: Register MCP router**
 
 Add after existing imports:
 
@@ -649,7 +649,7 @@ app.include_router(mcp_router)
 
 Also ensure `static/mcp.html` is served (via existing StaticFiles mount or add a new route).
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add api.py
@@ -664,17 +664,8 @@ git commit -m "feat: register MCP API routes in FastAPI"
 - Create: `static/mcp.html`
 - Create: `static/mcp.js`
 
-- [ ] **Step 1: Write `static/mcp.html`**
-
-HTML page with:
-- Server list table (name, URL, timeout, action buttons)
-- Add/Edit server dialog (name, URL, timeout fields)
-- Tool list table (server name, tool name, description, enabled/disabled toggle)
-- Test connection and sync buttons per server
-
-Style: matching existing `static/style.css` dark theme.
-
-- [ ] **Step 2: Write `static/mcp.js`**
+- [x] **Step 1: Write `static/mcp.html`**
+- [x] **Step 2: Write `static/mcp.js`**
 
 JavaScript for:
 - Load servers: `GET /mcp/servers`
@@ -684,7 +675,7 @@ JavaScript for:
 - Sync tools: `POST /mcp/servers/{id}/sync`
 - Toggle tool: `PUT /mcp/tools/{id}`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add static/mcp.html static/mcp.js
@@ -699,22 +690,9 @@ git commit -m "feat: add MCP management web UI"
 - Modify: `AGENTS.md`
 - Modify: `.sisyphus/plans/INDEX.md`
 
-- [ ] **Step 1: Update AGENTS.md**
-
-Add MCP constraints:
-
-```markdown
-## MCP 工具管理
-
-- MCP server 配置通过 Web UI（`/mcp/`）管理，持久化在 `.sisyphus/mcp.db`
-- 仅 HTTP SSE 传输模式，不支持 stdio（所有操作在沙箱内）
-- 启用的工具对所有会话有效，通过 `create_deep_agent(tools=[...])` 注入
-- 新增 MCP server 后需在 Web UI 点击"同步"工具列表
-```
-
-- [ ] **Step 2: Update INDEX.md plan status**
-
-- [ ] **Step 3: Commit**
+- [x] **Step 1: Update AGENTS.md**
+- [x] **Step 2: Update INDEX.md plan status**
+- [x] **Step 3: Commit**
 
 ```bash
 git add AGENTS.md .sisyphus/plans/INDEX.md

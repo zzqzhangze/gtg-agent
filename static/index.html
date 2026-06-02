@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Deep Agent</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
   <!-- Header -->
@@ -14,6 +14,7 @@
       <div class="logo">🤖 My Deep Agent</div>
     </div>
     <div class="header-actions">
+      <button id="mcp-btn" class="icon-btn" title="MCP 工具管理" aria-label="MCP 工具管理">🔧</button>
       <button id="theme-toggle" class="icon-btn" title="切换暗色模式" aria-label="切换暗色模式">🌙</button>
       <button id="new-session" class="icon-btn" title="新会话" aria-label="开始新会话">🆕</button>
     </div>
@@ -56,7 +57,40 @@
     </div>
   </div>
 
+  <!-- MCP 侧边面板 -->
+  <div id="mcp-panel" class="mcp-panel">
+    <div class="mcp-drag-handle" title="拖动调整宽度"></div>
+    <div class="mcp-panel-header">
+      <h2>🔧 MCP 工具</h2>
+      <button id="mcp-panel-close" class="icon-btn" title="关闭">✕</button>
+    </div>
+    <div class="mcp-panel-body">
+      <!-- 连接区 -->
+      <div class="mcp-connect-row">
+        <input id="mcp-url-input" placeholder="粘贴 MCP 端点 URL，回车连接" />
+        <select id="mcp-mode-select">
+          <option value="auto">自动检测</option>
+          <option value="streamable-http">HTTP</option>
+          <option value="sse">SSE</option>
+        </select>
+        <button id="mcp-connect-btn">连接</button>
+      </div>
+      <div class="mcp-hint-bar">支持连接多个 Server，URL 输入框始终可用</div>
+      <div id="mcp-toast"></div>
+
+      <!-- Server 列表 -->
+      <div id="mcp-server-area"></div>
+
+      <!-- 空状态 -->
+      <div id="mcp-empty" class="mcp-empty-state">
+        <div class="mcp-empty-icon">🔌</div>
+        <p>还没有连接的 MCP Server</p>
+        <p class="mcp-hint">贴入 MCP 端点 URL 即可自动连接</p>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/marked.min.js"></script>
-  <script src="/static/app.js?v=10"></script>
+  <script src="/static/app.js?v=11"></script>
 </body>
 </html>

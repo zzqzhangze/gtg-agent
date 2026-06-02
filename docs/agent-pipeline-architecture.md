@@ -146,6 +146,6 @@ AGENTS.md 中有标准流程，这里用实际案例说明：
 | 集成点 | 代码位置 | 说明 |
 |--------|---------|------|
 | Skills 系统 | nodes.py:395-405 | Route A 中并行加载技能 |
-| MCP 工具 | nodes.py:408-420 (Route A), nodes.py:468-481 (Route C) | Route A 有沙箱+MCP，Route C 纯 MCP 工具无沙箱 |
+| MCP 工具 | nodes.py:408-420 (Route A), nodes.py:468-481 (Route C) | Route A 有沙箱+MCP，Route C 纯 MCP 工具无沙箱，详见 [mcp-system.md](mcp-system.md) |
 | SqliteSaver | api.py:51-52 | 对话持久化，通过 checkpointer 参数注入 |
 | 配置层 | config.py | 全局配置单例，所有模块统一读取 |

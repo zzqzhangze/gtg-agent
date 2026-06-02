@@ -275,6 +275,7 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
     LLM 调用失败时自动回退到关键词匹配。
     返回：更新账本上的 task_type, intent_reasoning, suggested_template, needs_sandbox。
     """
+    print("[STATUS] analyze_intent")
     last_message = state["messages"][-1].content
     print(f"\n[意图分析] 收到用户提问: '{last_message}'")
 
@@ -315,11 +316,15 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
             print(f"[意图分析]   └─ 推理: {reasoning}")
         if suggested_template:
             print(f"[意图分析]   └─ 模板: {suggested_template}")
+        label = {"chat": "闲聊", "compute": "简单计算", "tool_task": "工具调用",
+                 "code_exec": "代码执行", "data_analysis": "数据分析", "multi_step": "多步骤任务"}.get(task_type, task_type)
+        print(f"[STATUS] intent_result|💡 识别为「{label}」任务")
         return {
             "task_type": task_type,
             "intent_reasoning": reasoning,
             "suggested_template": suggested_template,
             "needs_sandbox": needs_sandbox,
+            "execution_phase": "analyze_intent",
         }
 
     except Exception as e:
@@ -333,18 +338,22 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
         ]
         if any(kw in last_message.lower() for kw in keywords):
             print("[意图分析] 🔍 关键词匹配 → code_exec")
+            print("[STATUS] intent_result|💡 识别为「代码执行」任务（关键词匹配）")
             return {
                 "task_type": "code_exec",
                 "intent_reasoning": "关键词匹配（LLM fallback）",
                 "suggested_template": "python-sandbox",
                 "needs_sandbox": True,
+                "execution_phase": "analyze_intent",
             }
         print("[意图分析] 📝 无关键词匹配 → chat")
+        print("[STATUS] intent_result|💬 识别为「闲聊」任务（关键词匹配）")
         return {
             "task_type": "chat",
             "intent_reasoning": "关键词无匹配（LLM fallback）",
             "suggested_template": None,
             "needs_sandbox": False,
+            "execution_phase": "analyze_intent",
         }
 
 
@@ -356,6 +365,7 @@ def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     未指定时回退到 TEMPLATE_FALLBACK。
     返回：将成功创建的沙箱 ID 写回账本。
     """
+    print("[STATUS] create_sandbox")
     client = SandboxClient()
     template = state.get("suggested_template") or TEMPLATE_FALLBACK
     print(f"正在创建隔离沙箱环境 (模板: {template})...")
@@ -371,7 +381,7 @@ def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
         raise RuntimeError("沙箱健康检查失败！")
 
     print(f"沙箱准备就绪: {sb.name}")
-    return {"sandbox_id": sb.name}
+    return {"sandbox_id": sb.name, "execution_phase": "create_sandbox"}
 
 
 def run_agent(state: SandboxAgentState) -> dict[str, Any]:
@@ -396,6 +406,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
 
         # ── Skills loading ──
         sa_skills_root: str | None = None
+        print("[STATUS] load_skills")
         try:
             from src.skills.loader import discover_skills, upload_skills_to_sandbox
 
@@ -409,6 +420,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
 
         # ── MCP tools loading ──
         mcp_additional_tools: list[BaseTool] = []
+        print("[STATUS] load_mcp")
         try:
             from src.mcp.db import get_enabled_servers
             from src.mcp.adapter import build_tools_for_server
@@ -423,6 +435,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
             print(f"[MCP] Failed to load MCP tools: {e}")
 
         # 组装超级机器人
+        print("[STATUS] execute_agent")
         agent = create_deep_agent(
             model=llm,
             backend=backend,
@@ -443,13 +456,14 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
             {"messages": state["messages"]},
             config={"configurable": {"thread_id": state["sandbox_id"]}},
         )
-        return {"messages": result["messages"]}
+        return {"messages": result["messages"], "execution_phase": "execute_agent"}
 
     # 路线 B：如果账本上没有沙箱，说明只是简单问候，直接盲答
     else:
+        print("[STATUS] agent_no_sandbox")
         print("[Agent 执行] 检测到无沙箱模式，正在以纯文本直接回复...")
         response = llm.invoke(state["messages"])
-        return {"messages": [response]}
+        return {"messages": [response], "execution_phase": "agent_no_sandbox"}
 
 
 def run_agent_with_mcp(state: SandboxAgentState) -> dict[str, Any]:
@@ -458,6 +472,7 @@ def run_agent_with_mcp(state: SandboxAgentState) -> dict[str, Any]:
     作用：加载 MCP 工具但不拉起沙箱，用于天气查询、数据库查询等 API 调用场景。
     返回：把大模型的最终回答追加到账本的 messages 列表里。
     """
+    print("[STATUS] mcp_tools")
     llm = ChatOpenAIWithReasoning(
         base_url=settings.openai_api_base,
         api_key=settings.openai_api_key,
@@ -497,11 +512,11 @@ def run_agent_with_mcp(state: SandboxAgentState) -> dict[str, Any]:
             {"messages": state["messages"]},
             config={"configurable": {"thread_id": thread_id}},
         )
-        return {"messages": result["messages"]}
+        return {"messages": result["messages"], "execution_phase": "mcp_tools"}
     else:
         print("[Agent MCP] 无可用 MCP 工具，回退到纯文本回复...")
         response = llm.invoke(state["messages"])
-        return {"messages": [response]}
+        return {"messages": [response], "execution_phase": "mcp_tools"}
 
 
 def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
@@ -510,6 +525,7 @@ def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     作用：无论是正常结束还是中途报错，最终都会流经这里，负责强制删除 Docker 容器，防止内存泄露。
     返回：把账本上的 sandbox_id 清空。
     """
+    print("[STATUS] cleanup_sandbox")
     if state.get("sandbox_id"):
         print(f"正在清理并销毁沙箱: {state['sandbox_id']}...")
         client = SandboxClient()
@@ -521,7 +537,7 @@ def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     else:
         print("[生命周期] 检查完毕：本次会话未启动沙箱，无需清理。")
 
-    return {"sandbox_id": None}
+    return {"sandbox_id": None, "execution_phase": "cleanup_sandbox"}
 
 
 def upload_files(state: SandboxAgentState) -> dict[str, Any]:
@@ -531,13 +547,14 @@ def upload_files(state: SandboxAgentState) -> dict[str, Any]:
     返回：更新账本上的 sandbox_id（不变），以及 uploaded_paths 记录映射关系。
     """
     input_files = state.get("input_files", [])
+    print(f"[STATUS] upload_files")
     if not input_files:
         print("[文件上传] 没有需要上传的文件，跳过。")
-        return {"uploaded_paths": []}
+        return {"uploaded_paths": [], "execution_phase": "upload_files"}
 
     if not state.get("sandbox_id"):
         print("[文件上传] 错误：没有可用的沙箱。")
-        return {"uploaded_paths": []}
+        return {"uploaded_paths": [], "execution_phase": "upload_files"}
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -558,7 +575,7 @@ def upload_files(state: SandboxAgentState) -> dict[str, Any]:
         uploaded.append({"local": local_path, "sandbox": sandbox_path})
 
     print(f"[文件上传] 完成，共上传 {len(uploaded)} 个文件。")
-    return {"uploaded_paths": uploaded}
+    return {"uploaded_paths": uploaded, "execution_phase": "upload_files"}
 
 
 def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
@@ -566,9 +583,10 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     【车间 6：自动发现沙箱输出文件】
     作用：扫描沙箱输出目录，识别每个文件的路径和类型，返回结构化列表。
     """
+    print("[STATUS] detect_files")
     if not state.get("sandbox_id"):
         print("[文件发现] 没有可用沙箱，跳过。")
-        return {"output_files": []}
+        return {"output_files": [], "execution_phase": "detect_files"}
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -590,13 +608,13 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
 
     if result.exit_code != 0:
         print(f"[文件发现] 扫描失败 (exit={result.exit_code}): {result.stderr}")
-        return {"output_files": []}
+        return {"output_files": [], "execution_phase": "detect_files"}
 
     # 解析输出，构建结构化结果
     raw_paths = [line.strip() for line in result.stdout.split("\n") if line.strip()]
     if not raw_paths:
         print("[文件发现] 未发现新文件。")
-        return {"output_files": []}
+        return {"output_files": [], "execution_phase": "detect_files"}
 
     files = []
     for path in raw_paths:
@@ -609,7 +627,7 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     for f in files:
         print(f"  - {f['path']} ({f['mime_type']})")
 
-    return {"output_files": files}
+    return {"output_files": files, "execution_phase": "detect_files"}
 
 
 def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
@@ -618,9 +636,10 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
     作用：读取每个文件的预览，用 LLM 判断价值并生成中文摘要。
     高价值文件标记后由 download_files 下载，低价值仅列路径。
     """
+    print("[STATUS] analyze_files")
     output_files: list[dict[str, Any]] = state.get("output_files", [])
     if not output_files or not state.get("sandbox_id"):
-        return {}
+        return {"execution_phase": "analyze_files"}
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -716,7 +735,7 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
         tag = "📦" if f.get("value") == "high" else "🗑️"
         print(f"  {tag} {os.path.basename(f['path'])} — {f.get('summary', '')}")
 
-    return {"output_files": output_files}
+    return {"output_files": output_files, "execution_phase": "analyze_files"}
 
 
 def _get_file_size(sb, path: str) -> int:
@@ -734,14 +753,15 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     作用：只下载高价值文件到本地 downloads/ 目录，低价值仅打印路径。
     返回：记录下载结果到 downloaded_paths 字段。
     """
+    print("[STATUS] download_files")
     output_files: list[dict[str, Any]] = state.get("output_files", [])
     if not output_files:
         print("[文件下载] 没有需要下载的文件，跳过。")
-        return {"downloaded_paths": []}
+        return {"downloaded_paths": [], "execution_phase": "download_files"}
 
     if not state.get("sandbox_id"):
         print("[文件下载] 错误：没有可用的沙箱。")
-        return {"downloaded_paths": []}
+        return {"downloaded_paths": [], "execution_phase": "download_files"}
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -798,4 +818,4 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
             print(f"     - {os.path.basename(f['path'])} ({f.get('summary', '中间文件，无需下载')})")
     print(f"{'=' * 48}\n")
 
-    return {"downloaded_paths": downloaded}
+    return {"downloaded_paths": downloaded, "execution_phase": "download_files"}

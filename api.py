@@ -14,8 +14,12 @@ FastAPI 服务入口 — 将 LangGraph Agent 暴露为 REST API。
 """
 
 import os
+import asyncio
+import json
+import queue
 import sqlite3
 import sys
+import threading
 import uuid
 import tempfile
 import shutil
@@ -71,6 +75,56 @@ def _cleanup_old_sessions(max_threads: int = 30) -> None:
 
 _cleanup_old_sessions(max_threads=30)
 
+# ── SSE 流式进度展示 ──────────────────────────────────────────────────
+_PHASE_MESSAGES = {
+    "analyze_intent": "🔍 正在分析你的需求...",
+    "create_sandbox": "🖥️ 正在准备运行环境...",
+    "upload_files": "📤 正在上传文件...",
+    "load_skills": "🎯 正在加载技能...",
+    "load_mcp": "🔧 正在加载 MCP 工具...",
+    "execute_agent": "🤖 正在执行任务...",
+    "agent_no_sandbox": "💬 正在生成回复...",
+    "mcp_tools": "🔧 正在调用工具...",
+    "detect_files": "📄 正在扫描输出文件...",
+    "analyze_files": "📋 正在评估文件价值...",
+    "download_files": "📥 正在下载结果文件...",
+    "cleanup_sandbox": "🧹 正在清理环境...",
+}
+
+
+def _format_status_event(payload: str) -> str:
+    """将 [STATUS] 标记格式化为 SSE JSON 事件字符串。"""
+    if "|" in payload:
+        phase, message = payload.split("|", 1)
+    else:
+        phase = payload
+        message = _PHASE_MESSAGES.get(payload, payload)
+    return json.dumps({"type": "status", "phase": phase, "message": message})
+
+
+class _StatusCapture:
+    """拦截 sys.stdout 中的 [STATUS] 标记并推送到线程安全队列。"""
+
+    def __init__(self, q: queue.Queue):
+        self.q = q
+        self.original = sys.stdout
+        self._buf = ""
+
+    def write(self, text: str) -> int:
+        self.original.write(text)
+        self._buf += text
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            line = line.strip()
+            if line.startswith("[STATUS]"):
+                payload = line[8:].strip()
+                self.q.put(_format_status_event(payload))
+        return len(text)
+
+    def flush(self):
+        self.original.flush()
+
+
 # 全局图实例（线程安全：LangGraph 的 StateGraph 是纯函数式的）
 _graph = build_graph(checkpointer=_saver)
 
@@ -101,11 +155,12 @@ async def chat(
     files: list[UploadFile] = File(None, description="待上传的文件（可选）"),
 ):
     """
-    核心聊天接口。
+    核心聊天接口 — SSE 流式响应。
 
     - 上传的文件会先保存到临时目录，然后传入图的 input_files 字段。
-    - 若 Agent 在沙箱内产生了输出文件，可通过 output_files 字段指定路径，
-      本接口在 stream 结束后自动返回这些文件。
+    - 后台线程执行 LangGraph，通过 stdout 捕获 [STATUS] 标记实时推送进度。
+    - 每个 SSE event 格式: data: {...}\n\n
+    - 最终 event type="done" 包含 response 和 downloaded_files。
     """
     # 1. 保存上传文件到会话目录
     session_dir = get_session_dir(session_id)
@@ -136,24 +191,48 @@ async def chat(
     }
     config = {"configurable": {"thread_id": session_id}}
 
-    # 3. 流式执行图，收集结果
-    result_text = ""
-    downloaded = []
+    # 3. 后台线程执行图，通过队列推送 SSE 事件
+    status_queue: "queue.Queue[str | None]" = queue.Queue()
 
-    for event in _graph.stream(input_data, config, stream_mode="values"):
-        if "messages" in event and len(event["messages"]) > 0:
-            last_msg = event["messages"][-1]
-            result_text = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+    def run_graph():
+        """在后台线程中执行 LangGraph，捕获 [STATUS] 标记推送到队列。"""
+        original_stdout = sys.stdout
+        capture = _StatusCapture(status_queue)
+        sys.stdout = capture
+        try:
+            result = {"response": "", "downloaded_files": []}
+            for event in _graph.stream(input_data, config, stream_mode="values"):
+                if "messages" in event and event["messages"]:
+                    last_msg = event["messages"][-1]
+                    result["response"] = (
+                        last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+                    )
+                if "downloaded_paths" in event and event["downloaded_paths"]:
+                    result["downloaded_files"] = event["downloaded_paths"]
+            status_queue.put(json.dumps({"type": "done", "data": result}))
+        except Exception as e:
+            print(f"[API] 图执行异常: {e}")
+            status_queue.put(json.dumps({"type": "error", "data": {"message": str(e)}}))
+        finally:
+            sys.stdout = original_stdout
+            status_queue.put(None)  # 结束哨兵
 
-        if "downloaded_paths" in event and event["downloaded_paths"]:
-            downloaded = event["downloaded_paths"]
+    thread = threading.Thread(target=run_graph, daemon=True, name="graph-stream")
+    thread.start()
 
-    # 4. 响应
-    return JSONResponse({
-        "session_id": session_id,
-        "response": result_text,
-        "downloaded_files": downloaded,
-    })
+    # 4. SSE 生成器：从队列读取并推送到 HTTP 流
+    async def generate():
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                msg = await loop.run_in_executor(None, status_queue.get)
+                if msg is None:
+                    break
+                yield f"data: {msg}\n\n"
+            except Exception:
+                break
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/files/{session_id}/{filename}")

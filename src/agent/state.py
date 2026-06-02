@@ -58,3 +58,7 @@ class SandboxAgentState(MessagesState):
 
     # 当前会话 ID，用于文件存储隔离
     session_id: str | None = None
+
+    # 当前执行阶段（供 SSE 流推送给前端展示进度）
+    # 由每个节点函数在其返回 dict 中设置
+    execution_phase: str | None = None

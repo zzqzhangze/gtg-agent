@@ -88,3 +88,10 @@
 ## 优先级
 
 CLAUDE.md > AGENTS.md > README.md > 代码注释
+
+## Skills 系统
+
+- SKILL.md 文件存放在宿主机的 `.sisyphus/skills/<name>/SKILL.md`
+- agent 运行时自动上传到沙箱并注入 `create_deep_agent(skills=...)`
+- 技能通过 DeepAgents 原生 SkillsMiddleware 生效
+- 新增技能只需在 `.sisyphus/skills/` 下创建目录 + SKILL.md，无需重启服务

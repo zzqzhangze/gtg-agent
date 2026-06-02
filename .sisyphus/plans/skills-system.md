@@ -1,9 +1,9 @@
 # Skills System Implementation Plan
 
-> status: draft
+> status: in_progress
 > branch: feat/skills-system
 > created: 2026-06-01
-> updated: 2026-06-01
+> updated: 2026-06-02
 
 **Goal:** Host SKILL.md files on host machine and inject them into DeepAgents runtime as `skills` parameter.
 
@@ -36,9 +36,9 @@
 - Create: `src/skills/loader.py`
 - Create: `.sisyphus/skills/` directory
 
-- [ ] **Step 1: Create `src/skills/__init__.py`** (empty)
+- [x] **Step 1: Create `src/skills/__init__.py`** (empty)
 
-- [ ] **Step 2: Write `src/skills/loader.py`**
+- [x] **Step 2: Write `src/skills/loader.py`**
 
 DeepAgents' `create_deep_agent()` accepts a `skills` parameter. Based on the architecture analysis, the expected format is a list of skill objects, where each skill has at minimum a `name` and `content` field (the full SKILL.md content).
 
@@ -114,9 +114,9 @@ def upload_skills_to_sandbox(backend: Any, skills: list[dict[str, Any]]) -> list
     return sandbox_paths
 ```
 
-- [ ] **Step 3: Create `.sisyphus/skills/` directory** (empty, holds skill subdirectories)
+- [x] **Step 3: Create `.sisyphus/skills/` directory** (empty, holds skill subdirectories)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** (79e12fa)
 
 ```bash
 git add src/skills/
@@ -131,7 +131,7 @@ git commit -m "feat: add skills loader"
 **Files:**
 - Modify: `src/agent/nodes.py`
 
-- [ ] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
+- [x] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
 
 After the MCP tools loading block (or in the same area before `create_deep_agent()`), insert:
 
@@ -163,7 +163,7 @@ Change `create_deep_agent()` call to add `skills` parameter:
         )
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit** (bf8abc2)
 
 ```bash
 git add src/agent/nodes.py
@@ -178,20 +178,8 @@ git commit -m "feat: integrate skills into run_agent"
 - Modify: `AGENTS.md`
 - Modify: `.sisyphus/plans/INDEX.md`
 
-- [ ] **Step 1: Update AGENTS.md**
-
-Add Skills section:
-
-```markdown
-## Skills 系统
-
-- SKILL.md 文件存放在宿主机的 `.sisyphus/skills/<name>/SKILL.md`
-- agent 运行时自动上传到沙箱并注入 `create_deep_agent(skills=...)`
-- 技能通过 DeepAgents 原生 SkillsMiddleware 生效
-- 新增技能只需在 `.sisyphus/skills/` 下创建目录 + SKILL.md，无需重启服务
-```
-
-- [ ] **Step 2: Update INDEX.md plan status**
+- [x] **Step 1: Update AGENTS.md**
+- [x] **Step 2: Update INDEX.md plan status**
 
 - [ ] **Step 3: Commit**
 

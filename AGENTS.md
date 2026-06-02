@@ -32,6 +32,11 @@
 
 计划（`.sisyphus/plans/*.md`）不是静态文档，是**活的管理工具**。必须遵守：
 
+### 分支优先
+
+**每个计划必须在独立分支上实施，禁止直接在 master 上开发。** 实施完成后推送分支，由用户测试批准后才合并到 master。
+详情见 [分支管理规范](.sisyphus/workflows/branch-management.md)。
+
 ### 创建新计划时
 
 1. 写入 `.sisyphus/plans/<name>.md`
@@ -50,7 +55,7 @@
 |------|---------|
 | 新开分支 | `INDEX.md` 加一行 + 写分支名 |
 | 步骤完成 | plan 文件 checkbox |
-| 方向完成 | `INDEX.md` 状态 + 主计划 `updated` |
+| 推送分支等待测试 | `INDEX.md` 状态改为 `vN 完成，待合并` + `updated` |
 | 合并到 master | `INDEX.md` ✅ + 删除分支字段 |
 
 ### 计划文件头格式（必须包含）

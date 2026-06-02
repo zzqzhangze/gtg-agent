@@ -34,15 +34,17 @@ Plan 里的每个方向（direction）对应独立的 feature 分支。不在一
 ❌ dev                            ← 什么都往这堆
 ```
 
-### 3. 完成即合入，合入即删除
+### 3. 用户审批制：完成推送，用户批准后合入
 
-方向做完了立刻合并到 master，不积压。合并后删掉 feature 分支，不保留僵尸分支。
+实施完成后**不直接合并**，先推送分支到远程，通知用户测试。用户批准后才能合并。
 
 ```
-完成 → merge --no-ff → 删除 feature 分支
+实施完成 → git push origin feat/<name> → 通知用户 → 用户测试
+    ↓ 用户说"合并"
+merge --no-ff → 删除 feature 分支
 ```
 
-`--no-ff` 保留合并拓扑，一眼看出哪些 commit 属于哪个方向。
+`--no-ff` 保留合并拓扑，提交踪迹里一眼看出分支线和哪些 commit 属于哪个方向。
 
 ### 4. 不堆叠
 
@@ -58,16 +60,27 @@ git pull                     # 确保最新
 git checkout -b feat/<name>  # 拉新分支
 ```
 
-### 方向完成，合并回 master
+### 方向完成，推送分支等待测试
 
 ```bash
 # 在 feature 分支上
 git add -A && git commit     # 提交所有改动
+git push origin feat/<name>  # 推送到远程
+# 通知用户测试。等待用户说"合并"后再继续下一步
+```
 
-# 切到 master 合并
+### 用户批准后，合并回 master
+
+```bash
+# 确保 master 是最新的
 git checkout master
+git pull
+
+# 合并（保留分支线）
 git merge feat/<name> --no-ff -m "feat: merge <scope> - <summary>"
 git branch -d feat/<name>    # 删除 feature 分支
+git push origin master       # 推送合并结果
+git push origin --delete feat/<name>  # 删除远程分支
 ```
 
 ### 发现当前分支跑偏了（混入了其他方向的改动）
@@ -98,9 +111,10 @@ git stash pop                # 恢复改动
 - [ ] 分支名精确描述了改动范围？
 - [ ] 这个分支只做一个方向的事？
 - [ ] 功能完整可工作？
-- [ ] 已跑的测试通过了？
+- [ ] 已推送到远程？
+- [ ] 用户已测试并批准？
 - [ ] 合并时用了 `--no-ff`？
-- [ ] 合完后删除了 feature 分支？
+- [ ] 合完后删除了本地和远程分支？
 
 ## 例外处理
 

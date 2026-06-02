@@ -86,6 +86,9 @@
 | **Edge** | `src/agent/graph.py` — 节点连线 |
 | **Sandbox** | `src/sandbox/` — Docker 隔离执行环境 |
 | **Config** | `src/config.py` — 环境变量集中读取 |
+| **MCP** | `src/mcp/` — MCP 协议客户端 + BaseTool 适配器 + 管理 API |
+| **Skills** | `src/skills/` — 技能发现与沙箱上传 |
+| **LLM 兼容层** | `src/llm.py` — 多厂商 reasoning 字段透传 |
 | **分支工作流** | `.sisyphus/workflows/branch-management.md` — 分支管理规范 |
 | **计划** | `.sisyphus/plans/` — 活计划，持续同步实施进度 |
 | **计划注册表** | `.sisyphus/plans/INDEX.md` — 所有计划的集中索引 |
@@ -121,8 +124,9 @@ CLAUDE.md > AGENTS.md > README.md > 代码注释
 
 ## MCP 工具管理
 
-- MCP server 配置通过 Web UI（`/mcp/`）管理，持久化在 `.sisyphus/mcp.db`
-- 仅 HTTP SSE 传输模式，不支持 stdio（所有操作在沙箱外，Agent 框架侧）
+- MCP server 配置通过 Web UI（`/mcp/`）管理，持久化在 `.sisyphus/mcp/mcp.db`
+- 支持双模传输：**Streamable HTTP**（POST 直连 + Mcp-Session-Id 头）和 **HTTP SSE**（标准 MCP），Web UI 提供传输模式选择器（auto / HTTP / SSE）
+- 不支持 stdio（所有操作在沙箱外，Agent 框架侧）
 - 启用的工具对所有会话有效，通过 `create_deep_agent(tools=[...])` 注入
-- 新增 MCP server 后需在 Web UI 点击"同步"拉取工具列表，再启用需要的工具
+- 新增 MCP server 后需在 Web UI 同步拉取工具列表，再启用需要的工具
 - `run_agent` 节点中 MCP 和 Skills 并行加载，互不阻塞

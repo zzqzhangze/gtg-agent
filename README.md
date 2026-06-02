@@ -10,21 +10,29 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
                  │  隔离会话记忆 │                     ▼
                  └───────────────────────────── 历史消息自动恢复
                                                       │
-                 ┌────────────────────────────────────┼────────────────────┐
-                 ▼ chat/compute                    ▼ code_exec           ▼ data_analysis
-            run_agent (直接 LLM)          create_sandbox (动态选择模板)      / multi_step
-                                                 │
-                                           upload_files
-                                                 │
-                                           run_agent (DeepAgent)
-                                                 │
-                                           detect_output_files
-                                                 │
-                                           analyze_output_files
-                                                 │
-                                           download_files → 浏览器下载
-                                                 │
-                                           cleanup_sandbox
+                 ┌────────────────────────────────────┼─────────────────────────────┐
+                 ▼ chat/compute                    ▼ code_exec                    ▼ data_analysis
+            run_agent (直接 LLM)          create_sandbox (动态选择模板)               / multi_step
+           (Route B, 无沙箱)                     │
+                                     ┌───────────┼───────────┐
+                                     ▼           ▼           ▼
+                               upload_files  Skills  ──  MCP 工具
+                                     │      加载技能   并行加载工具
+                                     ▼
+                               run_agent (DeepAgent)
+                                  (Route A, 有沙箱)
+                                     │
+                                     ▼
+                               detect_output_files
+                                     │
+                                     ▼
+                               analyze_output_files
+                                     │
+                                     ▼
+                               download_files → 浏览器下载
+                                     │
+                                     ▼
+                               cleanup_sandbox
 ```
 
 > 意图分析使用 LLM 分类，支持 `chat` / `compute` / `code_exec` / `data_analysis` / `multi_step`。
@@ -115,12 +123,21 @@ API 端点：
 |------|------|------|
 | GET | `/` | Web 聊天界面（浏览器打开） |
 | POST | `/chat` | 发送消息 + 上传文件；`session_id` 参数决定对话记忆隔离 |
+| GET | `/api-info` | API 信息 |
+| GET | `/health` | 健康检查 |
 | GET | `/files/{session_id}/{filename}` | 下载处理后的文件 |
 | GET | `/sessions/{session_id}/downloads/{filename}` | 下载沙箱输出文件 |
 | GET | `/sessions/{session_id}/downloads/zip` | 批量打包下载沙箱输出文件 |
 | DELETE | `/sessions/{session_id}/history` | 删除指定会话的持久化记忆 |
-| GET | `/health` | 健康检查 |
-| GET | `/api-info` | API 信息 |
+| GET | `/mcp/` | MCP 管理页面（浏览器打开） |
+| GET | `/mcp/servers` | 列出已注册的 MCP server |
+| POST | `/mcp/servers` | 添加 MCP server |
+| PUT | `/mcp/servers/{id}` | 更新 MCP server 配置 |
+| DELETE | `/mcp/servers/{id}` | 删除 MCP server |
+| POST | `/mcp/servers/{id}/test` | 测试 MCP 连接 |
+| POST | `/mcp/servers/{id}/sync` | 同步 MCP 工具列表 |
+| GET | `/mcp/tools` | 列出 MCP 工具 |
+| PUT | `/mcp/tools/{id}` | 启用/禁用 MCP 工具 |
 
 ## 项目结构
 
@@ -131,7 +148,10 @@ my_deep_agent/
 ├── static/             # Web UI 前端文件
 │   ├── index.html      # 聊天界面 HTML
 │   ├── style.css       # 样式 + 暗色模式
-│   └── app.js          # 交互逻辑
+│   ├── app.js          # 交互逻辑
+│   ├── mcp.html        # MCP 管理页面
+│   ├── mcp.js          # MCP 管理交互逻辑
+│   └── marked.min.js   # Markdown 渲染库
 ├── pyproject.toml      # 项目元数据与依赖声明
 ├── uv.lock             # uv 依赖锁定文件
 ├── .python-version     # Python 版本声明
@@ -139,12 +159,28 @@ my_deep_agent/
 ├── AGENTS.md           # AI 行为指令
 ├── src/                # 核心代码
 │   ├── config.py       # 集中配置（所有环境变量在此读取）
-│   ├── sandbox/        # 沙箱接口层
-│   └── agent/          # Agent 编排层
+│   ├── llm.py          # LLM 兼容层（多厂商 reasoning 透传）
+│   ├── sandbox/        # 沙箱接口层（async→sync 桥接 + 模板注册表）
+│   ├── agent/          # Agent 编排层（LangGraph 状态机）
+│   │   ├── state.py    # 全局共享状态（账本）
+│   │   ├── nodes.py    # 处理节点（8 个车间）
+│   │   └── graph.py    # 节点连线与路由
+│   ├── mcp/            # MCP 协议工具集成
+│   │   ├── client.py   # 双模传输客户端（streamable-http + SSE）
+│   │   ├── adapter.py  # MCPTool(BaseTool) 适配器
+│   │   ├── db.py       # SQLite 持久层（servers + tools）
+│   │   └── router.py   # FastAPI 管理路由
+│   └── skills/         # Skills 技能系统
+│       ├── __init__.py
+│       └── loader.py   # 技能发现与沙箱上传
 ├── .sisyphus/
-│   └── sessions/       # 对话消息持久化数据库（自动创建）
+│   ├── sessions/       # 对话消息持久化数据库（自动创建）
+│   ├── plans/          # 实施计划（活文档）
+│   ├── skills/         # 技能 SKILL.md 文件
+│   ├── workflows/      # 工作流规范
+│   └── mcp/            # MCP 配置数据库（自动创建）
 ├── downloads/          # 沙箱结果文件下载目录（自动创建）
-└── docs/               # 备选方案、设计文档存档
+└── docs/               # 备选方案、设计文档存档、优化方案
 ```
 
 > AI 行为指令（文档铁律、代码约束、扩展工作流）见 [AGENTS.md](AGENTS.md)。

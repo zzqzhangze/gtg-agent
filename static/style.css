@@ -127,6 +127,31 @@ body {
   background: var(--surface-hover);
 }
 
+/* ── New Session Button (accent pill) ─────────────── */
+.new-session-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.new-session-btn:hover {
+  background: var(--accent-hover);
+}
+
+.new-session-btn:active {
+  transform: scale(0.97);
+}
+
 /* ── Chat Container ────────────────────────────────── */
 #chat-container {
   flex: 1;
@@ -784,6 +809,14 @@ html.dark #chat-container.drag-over {
 
   #chat-container {
     padding: 12px;
+  }
+
+  .new-session-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .new-session-btn .btn-label {
+    display: none;
   }
 
   #input-area {

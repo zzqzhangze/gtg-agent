@@ -1,15 +1,17 @@
-# MCP Tool Integration Implementation Plan
+# MCP + Skills Integration Implementation Plan
 
 > status: draft
 > branch: feat/mcp-integration
 > created: 2026-06-01
 > updated: 2026-06-01
 
-**Goal:** Add MCP protocol tool access to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
+**Goal:** Add MCP protocol tool access and SKILL.md-based Skills system to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
 
-**Architecture:** MCP HTTP SSE client → LangChain `BaseTool` adapter → inject via `create_deep_agent(tools=[...])` in the existing `run_agent` node. Server configs and tool states stored in SQLite (`.sisyphus/mcp.db`). Web UI manages servers/tools via FastAPI endpoints under `/mcp/`.
+**Architecture:**
+- **MCP**: HTTP SSE client → LangChain `BaseTool` adapter → inject via `create_deep_agent(tools=[...])` in `run_agent` node. Server configs stored in SQLite (`.sisyphus/mcp.db`). Web UI manages servers/tools via FastAPI endpoints under `/mcp/`.
+- **Skills**: SKILL.md files stored on host at `.sisyphus/skills/<name>/SKILL.md`. At agent runtime, uploaded to sandbox → deepagents built-in `SkillsMiddleware` loads them via `create_deep_agent(skills=["/workspace/skills/"])`.
 
-**Tech Stack:** `httpx` (SSE client), LangChain `BaseTool`, FastAPI, SQLite3, vanilla HTML/CSS/JS.
+**Tech Stack:** `httpx` (SSE client), LangChain `BaseTool`, deepagents `SkillsMiddleware`, FastAPI, SQLite3, vanilla HTML/CSS/JS.
 
 **Design doc:** `docs/mcp-skills-upgrade-design.md`
 
@@ -23,12 +25,14 @@
 | `src/mcp/adapter.py` | **Create** | `MCPTool(BaseTool)`: wraps MCP tool as LangChain-compatible tool |
 | `src/mcp/db.py` | **Create** | SQLite CRUD: mcp_servers + mcp_tables, auto-create DB on first use |
 | `src/mcp/router.py` | **Create** | FastAPI router: 8 MCP management endpoints under `/mcp/` |
-| `src/agent/nodes.py` | **Modify** | `run_agent`: load MCP tools before `create_deep_agent()` |
+| `src/mcp/skills.py` | **Create** | Skills helper: host → sandbox upload, skill directory scanning |
+| `src/agent/nodes.py` | **Modify** | `run_agent`: load MCP tools + upload skills before `create_deep_agent()` |
 | `api.py` | **Modify** | Register MCP router + serve `static/mcp.html` as MCP management page |
 | `static/mcp.html` | **Create** | MCP management page: server list + CRUD dialog + tool toggle table |
 | `static/mcp.js` | **Create** | MCP management page logic: fetch API, CRUD operations, test/sync/toggle |
 | `.sisyphus/plans/INDEX.md` | **Modify** | Register this plan |
-| `AGENTS.md` | **Modify** | Add MCP-related workflow and constraint notes |
+| `AGENTS.md` | **Modify** | Add MCP + Skills workflow and constraint notes |
+| `.sisyphus/skills/` | **Create** | Skills directory on host (SKILL.md files, initially empty) |
 
 ---
 
@@ -534,7 +538,122 @@ git commit -m "feat: add MCPTool BaseTool adapter"
 
 ---
 
-### Task 4: FastAPI router for MCP management
+### Task 4: Skills helper — host to sandbox upload
+
+**Files:**
+- Create: `src/mcp/skills.py`
+
+- [ ] **Step 1: Write `src/mcp/skills.py`**
+
+Scans `.sisyphus/skills/` on host for skill directories (each containing `SKILL.md`), uploads them to sandbox, returns the sandbox skills path.
+
+```python
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+SKILLS_HOST_DIR = Path(__file__).resolve().parents[2] / ".sisyphus" / "skills"
+SANDBOX_SKILLS_DIR = "/workspace/skills"
+
+
+def list_host_skills() -> list[dict[str, Any]]:
+    """Scan host .sisyphus/skills/ for skill directories.
+
+    Returns:
+        List of skill metadata: [{name, description, path}]
+        Empty list if skills directory missing or no skills found.
+    """
+    if not SKILLS_HOST_DIR.is_dir():
+        return []
+    skills = []
+    for entry in sorted(SKILLS_HOST_DIR.iterdir()):
+        if not entry.is_dir():
+            continue
+        skill_md = entry / "SKILL.md"
+        if not skill_md.is_file():
+            continue
+        # Parse minimal info from SKILL.md frontmatter
+        try:
+            content = skill_md.read_text("utf-8")
+            meta = _parse_frontmatter(content)
+            skills.append({
+                "name": meta.get("name", entry.name),
+                "description": meta.get("description", ""),
+                "path": str(entry),
+                "files": _collect_skill_files(entry),
+            })
+        except Exception as e:
+            logger.warning("Failed to read skill %s: %s", entry.name, e)
+    return skills
+
+
+def _parse_frontmatter(content: str) -> dict[str, str]:
+    """Basic YAML frontmatter parser (no yaml dependency needed for MVP)."""
+    meta: dict[str, str] = {}
+    if not content.startswith("---"):
+        return meta
+    end = content.find("---", 3)
+    if end == -1:
+        return meta
+    front = content[3:end].strip()
+    for line in front.split("\n"):
+        if ":" in line:
+            key, _, val = line.partition(":")
+            meta[key.strip()] = val.strip()
+    return meta
+
+
+def _collect_skill_files(skill_dir: Path) -> list[tuple[str, bytes]]:
+    """Collect all files in a skill directory as (relative_path, content) pairs."""
+    files = []
+    for f in skill_dir.rglob("*"):
+        if f.is_file():
+            rel = str(f.relative_to(skill_dir))
+            files.append((rel, f.read_bytes()))
+    return files
+
+
+def upload_skills_to_sandbox(sandbox: Any) -> str | None:
+    """Upload all host skills to sandbox and return the sandbox skills path.
+
+    Args:
+        sandbox: Sandbox instance with .write(path, content) method.
+
+    Returns:
+        Sandbox skills base path (e.g. '/workspace/skills/'), or None if no skills.
+    """
+    skills = list_host_skills()
+    if not skills:
+        logger.info("[Skills] No skills found on host at %s", SKILLS_HOST_DIR)
+        return None
+
+    uploaded_count = 0
+    for skill in skills:
+        skill_name = skill["name"]
+        for rel_path, content in skill["files"]:
+            sandbox_path = f"{SANDBOX_SKILLS_DIR}/{skill_name}/{rel_path}"
+            sandbox.write(sandbox_path, content)
+            uploaded_count += 1
+
+    logger.info("[Skills] Uploaded %d files from %d skills to %s",
+                uploaded_count, len(skills), SANDBOX_SKILLS_DIR)
+    return SANDBOX_SKILLS_DIR
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/mcp/skills.py
+git commit -m "feat: add Skills host-to-sandbox upload helper"
+```
+
+---
+
+### Task 5: FastAPI router for MCP management
 
 **Files:**
 - Create: `src/mcp/router.py`
@@ -667,14 +786,14 @@ git commit -m "feat: add MCP management API endpoints"
 
 ---
 
-### Task 5: Integrate MCP tools into agent
+### Task 6: Integrate MCP + Skills into run_agent
 
 **Files:**
 - Modify: `src/agent/nodes.py`
 
 - [ ] **Step 1: Modify `run_agent` in `src/agent/nodes.py`**
 
-Add MCP tool loading before `create_deep_agent()` call. Keep route B unchanged.
+Add MCP tool loading and Skills upload before `create_deep_agent()` call. Keep route B unchanged.
 
 Insert after `backend = LangSmithBackend(sb)`:
 
@@ -693,9 +812,28 @@ Insert after `backend = LangSmithBackend(sb)`:
                     print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
         except Exception as e:
             print(f"[MCP] Failed to load MCP tools: {e}")
+
+        # ── Skills upload ──
+        mcp_skills_path: str | None = None
+        try:
+            from src.mcp.skills import upload_skills_to_sandbox
+            mcp_skills_path = upload_skills_to_sandbox(sb)
+        except Exception as e:
+            print(f"[Skills] Failed to upload skills: {e}")
 ```
 
-Then change `create_deep_agent(tools=mcp_additional_tools or None)`.
+Then change the `create_deep_agent()` call to include both `tools` and `skills`:
+
+```python
+        agent = create_deep_agent(
+            model=llm,
+            backend=backend,
+            tools=mcp_additional_tools or None,
+            skills=[mcp_skills_path] if mcp_skills_path else None,
+            system_prompt=(...),
+            checkpointer=MemorySaver(),
+        )
+```
 
 Add import at top of `nodes.py`:
 
@@ -707,12 +845,12 @@ from langchain_core.tools import BaseTool
 
 ```bash
 git add src/agent/nodes.py
-git commit -m "feat: integrate MCP tools into run_agent node"
+git commit -m "feat: integrate MCP tools and Skills into run_agent"
 ```
 
 ---
 
-### Task 6: Register routes and MCP management page in API
+### Task 7: Register routes and MCP management page in API
 
 **Files:**
 - Modify: `api.py`
@@ -742,7 +880,7 @@ git commit -m "feat: register MCP API routes in FastAPI"
 
 ---
 
-### Task 7: Web management UI
+### Task 8: Web management UI
 
 **Files:**
 - Create: `static/mcp.html`
@@ -779,14 +917,14 @@ git commit -m "feat: add MCP management web UI"
 
 ---
 
-### Task 8: Documentation
+### Task 9: Documentation
 
 **Files:**
 - Modify: `AGENTS.md`
 
 - [ ] **Step 1: Update AGENTS.md**
 
-Add MCP-related constraints and workflow notes to the code constraints section:
+Add MCP + Skills constraints and workflow notes to the code constraints section:
 
 ```markdown
 ## MCP 工具管理
@@ -795,7 +933,13 @@ Add MCP-related constraints and workflow notes to the code constraints section:
 - 仅 HTTP SSE 传输模式，不支持 stdio（所有操作在沙箱内）
 - 启用的工具对所有会话有效，通过 `create_deep_agent(tools=[...])` 注入
 - 新增 MCP server 后需在 Web UI 点击"同步"工具列表
-- 新增/修改依赖需检查 `pyproject.toml`
+
+## Skills 管理
+
+- Skills 以 SKILL.md 文件形式存储在宿主机的 `.sisyphus/skills/<name>/` 目录
+- 每次 `run_agent` 自动上传 skills 到沙箱，通过 deepagents `SkillsMiddleware` 加载
+- 技能遵循渐进式披露：agent 先看到名称和描述，需要时通过 `read_file` 读取完整内容
+- 新增/修改 skill 只需在 `.sisyphus/skills/` 下增删 SKILL.md 文件，下次对话自动生效
 ```
 
 - [ ] **Step 2: Update plan INDEX.md status**

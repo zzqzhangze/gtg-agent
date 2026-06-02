@@ -31,6 +31,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from starlette.responses import Response
 from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite import SqliteSaver
 
@@ -125,11 +126,23 @@ class _StatusCapture:
         self.original.flush()
 
 
+# ── 静态文件服务（禁止缓存，确保每次重启后浏览器加载最新版本） ──────
+class _NoCacheStaticFiles(StaticFiles):
+    """覆盖 StaticFiles，所有响应添加 Cache-Control: no-cache。"""
+
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+
 # 全局图实例（线程安全：LangGraph 的 StateGraph 是纯函数式的）
 _graph = build_graph(checkpointer=_saver)
 
 # 挂载静态文件目录（前端界面）
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", _NoCacheStaticFiles(directory="static"), name="static")
 
 # 注册 MCP 管理路由
 app.include_router(mcp_router)

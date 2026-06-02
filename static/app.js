@@ -579,9 +579,14 @@ async function sendMessage() {
   els.loading.classList.remove("hidden");
   clearExecutionLog();
 
-  // Show user message immediately
-  renderMessage("user", text);
-  STATE.currentMessages.push({ role: "user", content: text });
+  // 记录当前待发文件并立即清空输入栏的文件展示
+  const sentFiles = STATE.pendingFiles.slice();
+  STATE.pendingFiles = [];
+  updateFileBar();
+
+  // Show user message immediately (附上文件信息)
+  renderMessage("user", text, sentFiles);
+  STATE.currentMessages.push({ role: "user", content: text, files: sentFiles });
 
   // Clear input
   els.messageInput.value = "";
@@ -592,7 +597,7 @@ async function sendMessage() {
     formData.append("message", text);
     formData.append("session_id", STATE.sessionId);
 
-    for (const file of STATE.pendingFiles) {
+    for (const file of sentFiles) {
       formData.append("files", file);
     }
 
@@ -693,43 +698,61 @@ function renderMessage(role, content, files, isRestore) {
   }
   bubble.innerHTML = html;
 
-  // Download links as file chips
+  // File chips: support both browser File objects and server download objects
   if (files && files.length > 0) {
     const dlDiv = document.createElement("div");
     dlDiv.className = "download-links";
-    files.forEach(f => {
-      const fileName = f.local.split(/[\\/]/).pop();
-      const fileSize = f.size || 0;
-      const summary = f.summary || "";
+
+    // 判断是用户上传的 File（有 .name）还是服务器的下载对象（有 .local）
+    const isUserFile = typeof files[0]?.name === "string" && typeof files[0]?.local !== "string";
+
+    if (isUserFile) {
+      // 用户消息：只展示文件名和大小，不可下载
+      files.forEach(f => {
+        const chip = document.createElement("span");
+        chip.className = "file-chip";
+        const sizeText = formatFileSize(f.size);
+        chip.innerHTML = `<span class="chip-icon">${getFileIcon(f.name)}</span>`
+          + `<span class="chip-name">${escapeHtml(f.name)}</span>`
+          + (sizeText ? `<span class="chip-size">${sizeText}</span>` : "");
+        dlDiv.appendChild(chip);
+      });
+    } else {
+      // AI 回复：提供下载链接
+      files.forEach(f => {
+        const fileName = f.local.split(/[\\/]/).pop();
+        const fileSize = f.size || 0;
+        const summary = f.summary || "";
+        const sessionId = STATE.sessionId;
+
+        const chip = document.createElement("a");
+        chip.className = "file-chip";
+        chip.href = `/sessions/${encodeURIComponent(sessionId)}/downloads/${encodeURIComponent(fileName)}`;
+        chip.download = fileName;
+        chip.title = summary || fileName;
+
+        const sizeText = formatFileSize(fileSize);
+        chip.innerHTML = `<span class="chip-icon">${getFileIcon(fileName)}</span>`
+          + `<span class="chip-name">${escapeHtml(fileName)}</span>`
+          + (sizeText ? `<span class="chip-size">${sizeText}</span>` : "")
+          + `<span class="chip-arrow">⬇</span>`;
+
+        dlDiv.appendChild(chip);
+      });
+
+      // 打包下载按钮
       const sessionId = STATE.sessionId;
-
-      const chip = document.createElement("a");
-      chip.className = "file-chip";
-      chip.href = `/sessions/${encodeURIComponent(sessionId)}/downloads/${encodeURIComponent(fileName)}`;
-      chip.download = fileName;
-      chip.title = summary || fileName;
-
-      const sizeText = formatFileSize(fileSize);
-      chip.innerHTML = `<span class="chip-icon">${getFileIcon(fileName)}</span>`
-        + `<span class="chip-name">${escapeHtml(fileName)}</span>`
-        + (sizeText ? `<span class="chip-size">${sizeText}</span>` : "")
-        + `<span class="chip-arrow">⬇</span>`;
-
-      dlDiv.appendChild(chip);
-    });
-
-    // 打包下载按钮（只打包本轮对话的文件）
-    const sessionId = STATE.sessionId;
-    const fileNames = files.map(f => f.local.split(/[\\/]/).pop());
-    const zipUrl = `/sessions/${encodeURIComponent(sessionId)}/downloads/zip?`
-      + fileNames.map(n => `files=${encodeURIComponent(n)}`).join("&");
-    const zipBtn = document.createElement("a");
-    zipBtn.className = "file-chip zip-all";
-    zipBtn.href = zipUrl;
-    zipBtn.download = `${sessionId}.zip`;
-    zipBtn.title = "打包下载本轮文件";
-    zipBtn.innerHTML = `<span class="chip-icon">📦</span><span class="chip-name">打包下载</span><span class="chip-arrow">⬇</span>`;
-    dlDiv.appendChild(zipBtn);
+      const fileNames = files.map(f => f.local.split(/[\\/]/).pop());
+      const zipUrl = `/sessions/${encodeURIComponent(sessionId)}/downloads/zip?`
+        + fileNames.map(n => `files=${encodeURIComponent(n)}`).join("&");
+      const zipBtn = document.createElement("a");
+      zipBtn.className = "file-chip zip-all";
+      zipBtn.href = zipUrl;
+      zipBtn.download = `${sessionId}.zip`;
+      zipBtn.title = "打包下载本轮文件";
+      zipBtn.innerHTML = `<span class="chip-icon">📦</span><span class="chip-name">打包下载</span><span class="chip-arrow">⬇</span>`;
+      dlDiv.appendChild(zipBtn);
+    }
 
     bubble.appendChild(dlDiv);
   }

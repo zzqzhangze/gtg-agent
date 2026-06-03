@@ -800,6 +800,8 @@ html.dark .message p code {
   opacity: 0.85;
   margin-top: -1px;
   margin-bottom: 2px;
+  white-space: pre-wrap;
+  line-height: 1.6;
 }
 
 /* Typing dots (inline in active log entry) */

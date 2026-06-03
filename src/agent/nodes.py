@@ -318,7 +318,9 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
             print(f"[意图分析]   └─ 模板: {suggested_template}")
         label = {"chat": "闲聊", "compute": "简单计算", "tool_task": "工具调用",
                  "code_exec": "代码执行", "data_analysis": "数据分析", "multi_step": "多步骤任务"}.get(task_type, task_type)
-        print(f"[STATUS] intent_result|💡 识别为「{label}」任务")
+        print(f"[STATUS] analyze_intent_detail|💡 识别为「{label}」")
+        if suggested_template:
+            print(f"[STATUS] analyze_intent_detail|📦 模板: {suggested_template}")
         return {
             "task_type": task_type,
             "intent_reasoning": reasoning,
@@ -338,7 +340,7 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
         ]
         if any(kw in last_message.lower() for kw in keywords):
             print("[意图分析] 🔍 关键词匹配 → code_exec")
-            print("[STATUS] intent_result|💡 识别为「代码执行」任务（关键词匹配）")
+            print("[STATUS] analyze_intent_detail|💡 识别为「代码执行」任务（关键词匹配）")
             return {
                 "task_type": "code_exec",
                 "intent_reasoning": "关键词匹配（LLM fallback）",
@@ -347,7 +349,7 @@ def analyze_intent(state: SandboxAgentState) -> dict[str, Any]:
                 "execution_phase": "analyze_intent",
             }
         print("[意图分析] 📝 无关键词匹配 → chat")
-        print("[STATUS] intent_result|💬 识别为「闲聊」任务（关键词匹配）")
+        print("[STATUS] analyze_intent_detail|💬 识别为「闲聊」任务（关键词匹配）")
         return {
             "task_type": "chat",
             "intent_reasoning": "关键词无匹配（LLM fallback）",
@@ -381,6 +383,8 @@ def create_sandbox(state: SandboxAgentState) -> dict[str, Any]:
         raise RuntimeError("沙箱健康检查失败！")
 
     print(f"沙箱准备就绪: {sb.name}")
+    print(f"[STATUS] create_sandbox_detail|📦 模板: {template}")
+    print(f"[STATUS] create_sandbox_detail|🆔 沙箱名: {sb.name}")
     return {"sandbox_id": sb.name, "execution_phase": "create_sandbox"}
 
 
@@ -415,6 +419,8 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
                 sa_skills_root = upload_skills_to_sandbox(backend, skills_list)
                 skill_names = [s["name"] for s in skills_list]
                 print(f"[Skills] Loaded {len(skills_list)} skills: {skill_names}")
+                names_str = ", ".join(skill_names)
+                print(f"[STATUS] load_skills_detail|🎯 {len(skills_list)} 个技能: {names_str}")
         except Exception as e:
             print(f"[Skills] Failed to load skills: {e}")
 
@@ -431,6 +437,8 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
                 if tools:
                     names = [t.name for t in tools]
                     print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
+                    names_str = ", ".join(names)
+                    print(f"[STATUS] load_mcp_detail|🔧 {len(tools)} 个工具: {names_str}")
         except Exception as e:
             print(f"[MCP] Failed to load MCP tools: {e}")
 
@@ -575,6 +583,11 @@ def upload_files(state: SandboxAgentState) -> dict[str, Any]:
         uploaded.append({"local": local_path, "sandbox": sandbox_path})
 
     print(f"[文件上传] 完成，共上传 {len(uploaded)} 个文件。")
+    if uploaded:
+        names = [os.path.basename(u["local"]) for u in uploaded]
+        print(f"[STATUS] upload_files_detail|📄 {len(uploaded)} 个文件上传完成")
+        for n in names:
+            print(f"[STATUS] upload_files_detail|  📄 {n}")
     return {"uploaded_paths": uploaded, "execution_phase": "upload_files"}
 
 
@@ -626,6 +639,9 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     print(f"[文件发现] 发现 {len(files)} 个文件:")
     for f in files:
         print(f"  - {f['path']} ({f['mime_type']})")
+    print(f"[STATUS] detect_files_detail|📄 发现 {len(files)} 个文件")
+    for f in files:
+        print(f"[STATUS] detect_files_detail|  📄 {os.path.basename(f['path'])} ({f['mime_type']})")
 
     return {"output_files": files, "execution_phase": "detect_files"}
 
@@ -731,6 +747,11 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
     high_count = sum(1 for f in output_files if f.get("value") == "high")
     low_count = sum(1 for f in output_files if f.get("value") != "high")
     print(f"[文件分析] 完成: {high_count} 个高价值, {low_count} 个低价值")
+    if output_files:
+        print(f"[STATUS] analyze_files_detail|📋 {high_count} 个高价值, {low_count} 个低价值")
+        for f in output_files:
+            if f.get("value") == "high":
+                print(f"[STATUS] analyze_files_detail|  📦 {os.path.basename(f['path'])} — {f.get('summary', '')}")
     for f in output_files:
         tag = "📦" if f.get("value") == "high" else "🗑️"
         print(f"  {tag} {os.path.basename(f['path'])} — {f.get('summary', '')}")
@@ -808,6 +829,9 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     print(f"\n{'=' * 48}")
     if downloaded:
         print(f"  ✅ 已下载 {len(downloaded)} 个文件：")
+        print(f"[STATUS] download_files_detail|📥 已下载 {len(downloaded)} 个文件")
+        for d in downloaded:
+            print(f"[STATUS] download_files_detail|  📥 {os.path.basename(d['sandbox'])} ({d['size']} bytes)")
         for d in downloaded:
             print(f"     📄 {os.path.basename(d['sandbox'])} → {d['local']} ({d['size']} bytes)")
             if d["summary"]:

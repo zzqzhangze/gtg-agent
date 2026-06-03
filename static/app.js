@@ -477,16 +477,13 @@ function completeActiveEntry() {
 function setDetailText(text) {
   const log = document.getElementById("execution-log");
   if (!log) return;
-  // 优先查看当前 active 条目，否则看上一条已完成的
+  // 追加到当前 active 条目（多个 _detail 事件会依次追加成多行）
   const target = log.querySelector(".log-entry.active") || log.lastElementChild;
   if (!target) return;
-  let detail = target.querySelector(".log-detail");
-  if (!detail) {
-    detail = document.createElement("div");
-    detail.className = "log-detail";
-    target.appendChild(detail);
-  }
+  const detail = document.createElement("div");
+  detail.className = "log-detail";
   detail.textContent = text;
+  target.appendChild(detail);
 }
 
 function clearExecutionLog() {
@@ -535,8 +532,8 @@ function finalizeExecutionLog(isError) {
 // ── SSE Event Handling ───────────────────────────────
 function handleSSEEvent(data) {
   if (data.type === "status") {
-    if (data.phase === "intent_result") {
-      // 意图结果作为上一步的详情
+    if (data.phase.endsWith("_detail")) {
+      // 详情信息：作为当前步骤的补充说明行
       setDetailText(data.message);
     } else {
       // 新步骤：完成上一步，创建当前步

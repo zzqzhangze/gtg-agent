@@ -133,7 +133,12 @@ function loadCurrentMessages() {
     STATE.sessionName = sessions[idx].name || "";
     els.messages.innerHTML = "";
     for (const msg of STATE.currentMessages) {
-      renderMessage(msg.role, msg.content, msg.files, true);
+      try {
+        renderMessage(msg.role, msg.content, msg.files, true);
+      } catch (_) {
+        // 个别消息渲染失败不阻塞整个列表恢复
+        console.warn("跳过渲染异常消息", msg);
+      }
     }
   } else {
     STATE.currentMessages = [];
@@ -584,9 +589,12 @@ async function sendMessage() {
   STATE.pendingFiles = [];
   updateFileBar();
 
+  // 构造可 JSON 序列化的文件信息（File 对象不能直接存 localStorage）
+  const fileInfos = sentFiles.map(f => ({ name: f.name, size: f.size }));
+
   // Show user message immediately (附上文件信息)
-  renderMessage("user", text, sentFiles);
-  STATE.currentMessages.push({ role: "user", content: text, files: sentFiles });
+  renderMessage("user", text, fileInfos);
+  STATE.currentMessages.push({ role: "user", content: text, files: fileInfos });
 
   // Clear input
   els.messageInput.value = "";
@@ -698,26 +706,29 @@ function renderMessage(role, content, files, isRestore) {
   }
   bubble.innerHTML = html;
 
-  // File chips: support both browser File objects and server download objects
+  // File chips: support user-uploaded file info ({name, size}) and server download objects ({local, size, summary})
   if (files && files.length > 0) {
     const dlDiv = document.createElement("div");
     dlDiv.className = "download-links";
 
-    // 判断是用户上传的 File（有 .name）还是服务器的下载对象（有 .local）
-    const isUserFile = typeof files[0]?.name === "string" && typeof files[0]?.local !== "string";
+    // 判断类型：有 .name 无 .local → 用户文件；有 .local → 服务端下载；否则跳过
+    const first = files[0];
+    const isUserFile = first && typeof first.name === "string" && typeof first.local !== "string";
+    const isServerFile = first && typeof first.local === "string";
 
     if (isUserFile) {
       // 用户消息：只展示文件名和大小，不可下载
       files.forEach(f => {
         const chip = document.createElement("span");
         chip.className = "file-chip";
-        const sizeText = formatFileSize(f.size);
-        chip.innerHTML = `<span class="chip-icon">${getFileIcon(f.name)}</span>`
-          + `<span class="chip-name">${escapeHtml(f.name)}</span>`
+        const sizeText = f.size ? formatFileSize(f.size) : "";
+        const fname = f.name || "未知文件";
+        chip.innerHTML = `<span class="chip-icon">${getFileIcon(fname)}</span>`
+          + `<span class="chip-name">${escapeHtml(fname)}</span>`
           + (sizeText ? `<span class="chip-size">${sizeText}</span>` : "");
         dlDiv.appendChild(chip);
       });
-    } else {
+    } else if (isServerFile) {
       // AI 回复：提供下载链接
       files.forEach(f => {
         const fileName = f.local.split(/[\\/]/).pop();
@@ -753,6 +764,7 @@ function renderMessage(role, content, files, isRestore) {
       zipBtn.innerHTML = `<span class="chip-icon">📦</span><span class="chip-name">打包下载</span><span class="chip-arrow">⬇</span>`;
       dlDiv.appendChild(zipBtn);
     }
+    // else: 无法识别的文件数据，不渲染
 
     bubble.appendChild(dlDiv);
   }

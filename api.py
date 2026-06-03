@@ -374,16 +374,25 @@ async def health():
     return {"status": "ok"}
 
 
+def _no_cache_file(path: str) -> FileResponse:
+    """返回 FileResponse 并附加 no-cache 头，防止浏览器缓存 HTML 页面。"""
+    resp = FileResponse(path)
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
 @app.get("/")
 async def root():
     """Web UI 入口"""
-    return FileResponse("static/index.html")
+    return _no_cache_file("static/index.html")
 
 
 @app.get("/mcp/")
 async def mcp_ui():
     """MCP 管理页面"""
-    return FileResponse("static/mcp.html")
+    return _no_cache_file("static/mcp.html")
 
 @app.get("/api-info")
 async def api_info():

@@ -7,7 +7,7 @@
 
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
-| [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | in_progress | P0 | — | 2026-05-29 | 2026-06-01（方向四 ✅ → master） |
+| [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | partial | P0 | — | 2026-05-29 | 2026-06-03（方向一/四/五 ✅ → master；方向二/三/六/七 待定） |
 
 ## 已完成 Plan
 

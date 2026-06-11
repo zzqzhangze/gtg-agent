@@ -1,6 +1,6 @@
 # Agent 编排流水线原理
 
-> 本文档解释 LangGraph 状态机如何组织 my_deep_agent 的执行流程，
+> 本文档解释 LangGraph 状态机如何组织 gtg_agent 的执行流程，
 > 帮助理解节点（Node）、边（Edge）、路由（Router）、状态（State）之间的关系。
 >
 > **关键文件**: `src/agent/` 下的 state.py / nodes.py / graph.py

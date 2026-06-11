@@ -32,7 +32,7 @@ from langserve import add_routes
 from fastapi import FastAPI
 from src.agent.graph import build_graph
 
-app = FastAPI(title="My Deep Agent - LangServe")
+app = FastAPI(title="GTG Agent - LangServe")
 
 graph = build_graph()
 add_routes(app, graph, path="/agent")

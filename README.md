@@ -1,4 +1,4 @@
-# My Deep Agent
+# GTG Agent
 
 AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Docker 沙箱安全隔离执行任务。
 
@@ -139,7 +139,7 @@ API 端点：
 ## 项目结构
 
 ```
-my_deep_agent/
+gtg_agent/
 ├── api.py              # FastAPI 服务入口（含 Web UI 静态文件服务）
 ├── main.py             # 命令行入口
 ├── static/             # Web UI 前端文件

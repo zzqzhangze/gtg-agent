@@ -1,6 +1,6 @@
 # MCP 工具接入设计方案
 
-> 给 my_deep_agent 增加 MCP 协议工具接入能力，支持 Web 端可视化管理 MCP server 和工具启用。
+> 给 gtg_agent 增加 MCP 协议工具接入能力，支持 Web 端可视化管理 MCP server 和工具启用。
 >
 > **状态**: 已实施（v1 完成，详见 .sisyphus/plans/mcp-tool-integration.md）
 > **创建**: 2026-06-01

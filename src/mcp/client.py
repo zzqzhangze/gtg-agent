@@ -135,7 +135,7 @@ class MCPClient:
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "my-deep-agent", "version": "1.0"},
+                "clientInfo": {"name": "gtg-agent", "version": "1.0"},
             },
         }
         try:

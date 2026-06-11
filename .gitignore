@@ -34,3 +34,6 @@ wheels/
 
 # ── Legacy data directory (migrated to .omo) ──
 .sisyphus/
+
+# ── Open-source checklist (local only) ────────
+/docs/opensource-checklist.md

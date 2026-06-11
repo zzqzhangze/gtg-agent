@@ -5,7 +5,7 @@
 > created: 2026-06-01
 > updated: 2026-06-02
 
-**Goal:** Add MCP protocol tool access to my_deep_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
+**Goal:** Add MCP protocol tool access to gtg_agent, with Web-based management UI for MCP server configuration and tool enable/disable.
 
 **Architecture:** MCP HTTP SSE client → LangChain `BaseTool` adapter → inject via `create_deep_agent(tools=[...])` in the existing `run_agent` node. Server configs and tool states stored in SQLite (`.sisyphus/mcp.db`). Web UI manages servers/tools via FastAPI endpoints under `/mcp/`.
 

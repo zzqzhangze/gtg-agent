@@ -47,6 +47,16 @@ class Settings:
     # 网络状况差时可以适当调大。
     sandbox_request_timeout_seconds: int = 30
 
+    # ── Data Directory ───────────────────────────────────────────
+    # 运行时数据（会话、MCP 配置、技能文件）的根目录。
+    # 可通过 DATA_DIR 环境变量覆盖（例如 DATA_DIR=.omo）。
+    data_dir: str = ".omo"
+
+    # ── Paths (relative to data_dir) ──────────────────────────────
+    sessions_db: str = "sessions/graph.db"      # LangGraph checkpoints (SqliteSaver)
+    mcp_db: str = "mcp/mcp.db"                  # MCP server/tool 配置
+    skills_dir: str = "skills"                   # 技能 SKILL.md 目录
+
     @classmethod
     def from_env(cls) -> Settings:
         """从环境变量构建配置，缺失时回退到字段默认值。"""
@@ -69,8 +79,35 @@ class Settings:
             sandbox_request_timeout_seconds=int(
                 os.getenv("SANDBOX_REQUEST_TIMEOUT", str(cls.sandbox_request_timeout_seconds))
             ),
+            data_dir=os.getenv("DATA_DIR", cls.data_dir),
+            sessions_db=os.getenv("SESSIONS_DB", cls.sessions_db),
+            mcp_db=os.getenv("MCP_DB", cls.mcp_db),
+            skills_dir=os.getenv("SKILLS_DIR", cls.skills_dir),
         )
 
 
 # 全局单例 — 其他模块 ``from src.config import settings`` 即可使用
 settings = Settings.from_env()
+
+
+# ── 数据目录解析 ─────────────────────────────────────────────────────
+# 项目根目录（src/config.py → ../.. → 项目根）
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def data_path(subdir: str = "") -> str:
+    """解析数据目录下的子路径。
+
+    Example:
+        data_path(\"sessions\")   → /project/.omo/sessions
+        data_path(\"mcp/mcp.db\") → /project/.omo/mcp/mcp.db
+        data_path()              → /project/.omo
+
+    如果项目根目录下有 DATA_DIR 环境变量指定的目录结构，则返回对应路径。
+    """
+    base = os.path.join(_PROJECT_ROOT, settings.data_dir)
+    if subdir:
+        # 兼容 Windows/Unix 路径分隔符
+        normalized = subdir.replace("/", os.sep).replace("\\", os.sep)
+        return os.path.join(base, normalized)
+    return base

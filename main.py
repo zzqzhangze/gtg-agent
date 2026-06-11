@@ -351,7 +351,7 @@ def print_banner() -> None:
     """启动画面。"""
     term_width = shutil.get_terminal_size().columns
     print("━" * term_width)
-    print(f"{BOLD('My Deep Agent')} — 本地 AI 代码执行助手")
+    print(f"{BOLD('GTG Agent')} — 本地 AI 代码执行助手")
     print(f"输入消息开始对话，输入 {CYAN('/help')} 查看命令")
     print("━" * term_width)
 

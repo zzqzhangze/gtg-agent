@@ -9,7 +9,7 @@
 >
 > 该计划随 agent 主计划同步更新，前端界面需反映 agent 当前能力。
 
-**Goal:** Add a browser-based chat interface to My Deep Agent, served by the existing FastAPI backend.
+**Goal:** Add a browser-based chat interface to GTG Agent, served by the existing FastAPI backend.
 
 **Architecture:** FastAPI serves static files (`static/index.html`, `style.css`, `app.js`) alongside its REST API. The front-end is a pure HTML/CSS/JS SPA that calls `POST /chat` via Fetch API — no build step, no npm.
 
@@ -62,13 +62,13 @@ Structure (semantic HTML5):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Deep Agent</title>
+  <title>GTG Agent</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <!-- Header -->
   <header id="header">
-    <div class="logo">🤖 My Deep Agent</div>
+    <div class="logo">🤖 GTG Agent</div>
     <div class="header-actions">
       <button id="theme-toggle" title="切换暗色模式">🌙</button>
       <button id="new-session" title="新会话">🆕</button>

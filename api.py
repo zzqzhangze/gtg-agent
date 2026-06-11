@@ -45,7 +45,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 app = FastAPI(
-    title="My Deep Agent API",
+    title="GTG Agent API",
     description="本地 AI 代码执行 Agent — 支持文件上传、沙箱执行、结果下载",
     version="0.1.0",
 )
@@ -150,7 +150,7 @@ app.include_router(mcp_router)
 # 下载端点由 /sessions/{session_id}/downloads/{filename} 动态路由提供
 
 # 会话文件的临时存储根目录
-UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_deep_agent_uploads"
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "gtg_agent_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -398,7 +398,7 @@ async def mcp_ui():
 async def api_info():
     """API 信息（旧根路由挪到 /api-info）"""
     return {
-        "service": "My Deep Agent",
+        "service": "GTG Agent",
         "version": "0.1.0",
         "endpoints": {
             "POST /chat": "发送消息并处理文件",

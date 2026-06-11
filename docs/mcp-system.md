@@ -1,6 +1,6 @@
 # MCP 工具系统
 
-> 本文档解释 my_deep_agent 中 MCP（Model Context Protocol）工具集成的架构与实现，
+> 本文档解释 gtg_agent 中 MCP（Model Context Protocol）工具集成的架构与实现，
 > 帮助理解如何添加 MCP server、管理工具，以及 Agent 如何调用 MCP 工具。
 >
 > **关键文件**: `src/mcp/` 下的 client.py / adapter.py / db.py / router.py

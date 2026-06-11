@@ -36,6 +36,7 @@ from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 # 配置由 src.config 在 import 时自动加载 config.env
+from src.config import settings, data_path
 from src.agent.graph import build_graph
 from src.mcp.router import router as mcp_router
 
@@ -50,9 +51,8 @@ app = FastAPI(
 )
 
 # 持久化 checkpointer
-_SESSIONS_DIR = os.path.join(os.path.dirname(__file__), ".sisyphus", "sessions")
-os.makedirs(_SESSIONS_DIR, exist_ok=True)
-_db_path = os.path.join(_SESSIONS_DIR, "sessions.db")
+_db_path = data_path(settings.sessions_db)
+os.makedirs(os.path.dirname(_db_path), exist_ok=True)
 _conn = sqlite3.connect(_db_path, check_same_thread=False)
 _saver = SqliteSaver(_conn)
 

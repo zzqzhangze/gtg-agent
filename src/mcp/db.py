@@ -5,7 +5,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path(__file__).resolve().parents[2] / ".sisyphus" / "mcp" / "mcp.db"
+from src.config import settings, data_path
+
+DB_PATH = data_path(settings.mcp_db)
 
 
 def _get_conn() -> sqlite3.Connection:

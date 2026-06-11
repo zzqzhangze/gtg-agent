@@ -2,12 +2,14 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from src.config import settings, data_path
+
 logger = logging.getLogger(__name__)
 
-SKILLS_DIR = Path(__file__).resolve().parents[2] / ".sisyphus" / "skills"
+SKILLS_DIR = data_path(settings.skills_dir)
 
 
-SA_SKILLS_ROOT = "/home/user/.sisyphus/skills"
+SA_SKILLS_ROOT = "/home/user/.omo/skills"
 """Root directory on the sandbox where skill files are uploaded.
 
 Expected structure:
@@ -22,7 +24,7 @@ Pass this path in create_deep_agent(skills=[SA_SKILLS_ROOT]).
 
 
 def discover_skills() -> list[dict[str, Any]]:
-    """Scan .sisyphus/skills/ and return list of skill dicts.
+    """Scan {DATA_DIR}/skills/ and return list of skill dicts.
 
     Each skill is a dict with keys: name, content
     """

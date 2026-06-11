@@ -23,17 +23,17 @@ if hasattr(sys.stdout, "reconfigure"):
 logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s %(message)s", stream=sys.stderr)
 
 from langgraph.checkpoint.sqlite import SqliteSaver
+from src.config import settings, data_path
 from src.agent.graph import build_graph
 
 
 # ── 持久化初始化 ─────────────────────────────────────────────────────
-_SESSIONS_DIR = os.path.join(os.path.dirname(__file__), ".sisyphus", "sessions")
 
 
 def _create_checkpointer() -> SqliteSaver:
-    """创建 SqliteSaver，持久化到 .sisyphus/sessions/sessions.db。"""
-    os.makedirs(_SESSIONS_DIR, exist_ok=True)
-    db_path = os.path.join(_SESSIONS_DIR, "sessions.db")
+    """创建 SqliteSaver，持久化到 {DATA_DIR}/{SESSIONS_DB}。"""
+    db_path = data_path(settings.sessions_db)
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     saver = SqliteSaver(conn)
     return saver

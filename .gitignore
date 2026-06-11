@@ -1,17 +1,35 @@
-# IDE cache files
+# ── Secrets ───────────────────────────────────
+config.env
+
+# ── IDE / Editor ─────────────────────────────
 .idea
-# Python-generated files
+.vscode/
+*.swp
+*.swo
+
+# ── Python ────────────────────────────────────
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
-# Virtual environments
+# ── Virtual environments ─────────────────────
 .venv
+.venv*/
+
+# ── Generated / runtime data ─────────────────
 /tmp/
 /downloads/
-/.sisyphus/sessions/
-/.sisyphus/mcp/
-/.sisyphus/skills/
+/test-reports/
+
+# ── Runtime data (auto-generated, per-user) ──
+/.omo/sessions/
+/.omo/mcp/
+/.omo/skills/
+/.omo/run-continuation/
+
+# ── Legacy data directory (migrated to .omo) ──
+.sisyphus/

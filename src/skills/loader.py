@@ -6,7 +6,7 @@ from src.config import settings, data_path
 
 logger = logging.getLogger(__name__)
 
-SKILLS_DIR = data_path(settings.skills_dir)
+SKILLS_DIR = Path(data_path(settings.skills_dir))
 
 
 SA_SKILLS_ROOT = "/home/user/.omo/skills"

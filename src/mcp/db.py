@@ -7,7 +7,7 @@ from typing import Any
 
 from src.config import settings, data_path
 
-DB_PATH = data_path(settings.mcp_db)
+DB_PATH = Path(data_path(settings.mcp_db))
 
 
 def _get_conn() -> sqlite3.Connection:

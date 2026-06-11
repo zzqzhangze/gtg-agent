@@ -1,5 +1,5 @@
 [project]
-name = "my-deep-agent"
+name = "gtg-agent"
 version = "0.1.0"
 description = "Local AI code-execution agent with LangGraph orchestration, OpenAI-compatible LLM, and Docker sandbox isolation"
 readme = "README.md"
@@ -38,5 +38,5 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/zzqzhangze/my-deep-agent"
-Repository = "https://github.com/zzqzhangze/my-deep-agent"
+Homepage = "https://github.com/zzqzhangze/gtg-agent"
+Repository = "https://github.com/zzqzhangze/gtg-agent"

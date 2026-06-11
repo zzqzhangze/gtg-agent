@@ -2,7 +2,7 @@
 
 > 给 gtg_agent 增加 MCP 协议工具接入能力，支持 Web 端可视化管理 MCP server 和工具启用。
 >
-> **状态**: 已实施（v1 完成，详见 .sisyphus/plans/mcp-tool-integration.md）
+> **状态**: 已实施（v1 完成，详见 .omo/plans/mcp-tool-integration.md）
 > **创建**: 2026-06-01
 > **更新**: 2026-06-01
 
@@ -78,7 +78,7 @@ MCP（Model Context Protocol）基于 JSON-RPC 2.0。HTTP SSE 传输层：
            │ fetch()
            ▼
 ┌──────────────────────┐     ┌───────────────────────────────┐
-│   FastAPI Server      │     │   SQLite (.sisyphus/mcp.db)   │
+│   FastAPI Server      │     │   SQLite (.omo/mcp.db)   │
 │                       │     │   mcp_servers / mcp_tools     │
 │  /mcp/servers  CRUD   │◄───►│                               │
 │  /mcp/tools   list    │     └───────────────────────────────┘
@@ -184,7 +184,7 @@ CREATE TABLE mcp_tools (
 );
 ```
 
-数据库文件位置：`.sisyphus/mcp/mcp.db`（遵循 `.sisyphus/sessions/sessions.db` 模式统一到子目录）。
+数据库文件位置：`.omo/mcp/mcp.db`（遵循 `.omo/sessions/sessions.db` 模式统一到子目录）。
 
 **mcp_tools 的作用**：
 - 记录从 MCP server 同步来的工具列表
@@ -315,7 +315,7 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
 ```
 宿主机                         沙箱
 ───────                       ────────
-.sisyphus/skills/             /home/user/.sisyphus/skills/
+.omo/skills/             /home/user/.omo/skills/
   ├── python-output/            ├── python-output/
   │   └── SKILL.md     ──upload──└── SKILL.md
   └── web-research/             └── web-research/
@@ -337,8 +337,8 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
 
 | 符号 | 作用 |
 |------|------|
-| `SA_SKILLS_ROOT = "/home/user/.sisyphus/skills"` | 沙箱内技能文件根目录 |
-| `discover_skills()` | 扫描宿主机 `.sisyphus/skills/*/SKILL.md`，返回 `[{name, content}]` |
+| `SA_SKILLS_ROOT = "/home/user/.omo/skills"` | 沙箱内技能文件根目录 |
+| `discover_skills()` | 扫描宿主机 `.omo/skills/*/SKILL.md`，返回 `[{name, content}]` |
 | `upload_skills_to_sandbox(backend, skills)` | 调用 `backend.upload_files()` 上传到沙箱，返回根路径 |
 
 `discover_skills()` 在宿主机执行（`run_agent` 节点内），读本地文件系统。结果传给 `upload_skills_to_sandbox()` 上传到沙箱。
@@ -402,7 +402,7 @@ state["skills_metadata"]
           ...
           **Available Skills:**
           - **python-output**: Best practices for formatting Python script output
-            -> Read /home/user/.sisyphus/skills/python-output/SKILL.md for full instructions
+            -> Read /home/user/.omo/skills/python-output/SKILL.md for full instructions
           ...
           
           **How to Use Skills (Progressive Disclosure):**
@@ -452,7 +452,7 @@ description: Best practices for formatting Python script output in sandbox
 
 | 场景 | 处理 |
 |------|------|
-| `.sisyphus/skills/` 不存在 | `discover_skills()` 返回 `[]`，静默跳过 |
+| `.omo/skills/` 不存在 | `discover_skills()` 返回 `[]`，静默跳过 |
 | 目录下没有 SKILL.md | 记录 warning，跳过该目录 |
 | YAML frontmatter 缺少 name/description | 记录 warning，跳过该技能 |
 | SKILL.md 编码非 UTF-8 | 记录 warning，跳过 |

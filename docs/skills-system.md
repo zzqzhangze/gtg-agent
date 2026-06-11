@@ -11,7 +11,7 @@
 ```
 宿主机                                      沙箱
 ───────                                    ────────
-.sisyphus/skills/<name>/SKILL.md
+.omo/skills/<name>/SKILL.md
     │
     ▼
 discover_skills()                           SkillsMiddleware
@@ -24,7 +24,7 @@ upload_skills_to_sandbox()
     _sandbox.write() 回退                      
     │                                          agent 自主判断
     ▼                                          → read_file(path) 读完整技能
-/home/user/.sisyphus/skills/<name>/SKILL.md     → 按技能指令执行
+/home/user/.omo/skills/<name>/SKILL.md     → 按技能指令执行
     │
     ▼
 create_deep_agent(skills=[SA_SKILLS_ROOT])
@@ -36,7 +36,7 @@ create_deep_agent(skills=[SA_SKILLS_ROOT])
 
 ```python
 def discover_skills() -> list[dict]:
-    SKILLS_DIR = ".sisyphus/skills/"
+    SKILLS_DIR = ".omo/skills/"
     for entry in SKILLS_DIR.iterdir():
         if entry.is_dir() and (entry / "SKILL.md").exists():
             content = (entry / "SKILL.md").read_text(encoding="utf-8")
@@ -52,7 +52,7 @@ def discover_skills() -> list[dict]:
 ### 2.2 upload_skills_to_sandbox() — 上传到沙箱
 
 ```python
-SA_SKILLS_ROOT = "/home/user/.sisyphus/skills"
+SA_SKILLS_ROOT = "/home/user/.omo/skills"
 
 def upload_skills_to_sandbox(backend, skills):
     files_to_upload = []
@@ -102,7 +102,7 @@ state["skills_metadata"]
      ## Skills System
      **Available Skills:**
      - **python-output**: Best practices for Python output
-       → Read /home/user/.sisyphus/skills/python-output/SKILL.md
+       → Read /home/user/.omo/skills/python-output/SKILL.md
      ...
 
      **How to Use (Progressive Disclosure):**
@@ -188,7 +188,7 @@ token 预算：如果 10 个技能每个 2KB，注入 system prompt 就是 20KB
 
 | 场景 | 处理方式 |
 |------|----------|
-| `.sisyphus/skills/` 不存在 | `discover_skills()` 返回空列表，静默跳过 |
+| `.omo/skills/` 不存在 | `discover_skills()` 返回空列表，静默跳过 |
 | 目录下没有 SKILL.md | 记录 warning，跳过该目录 |
 | YAML frontmatter 缺失 name/description | 记录 warning，跳过该技能（SkillsMiddleware 决定） |
 | SKILL.md 编码非 UTF-8 | 读取失败，记录 warning |

@@ -4,7 +4,7 @@
 > created: 2026-05-31
 > updated: 2026-06-01
 >
-> 对应 plan: `.sisyphus/plans/download-optimization.md`
+> 对应 plan: `.omo/plans/download-optimization.md`
 
 ---
 

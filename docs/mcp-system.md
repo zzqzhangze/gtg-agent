@@ -169,7 +169,7 @@ def build_tools_for_server(server_config) -> list[BaseTool]:
 ### 数据库位置
 
 ```
-.sisyphus/mcp/mcp.db   (WAL 模式，自动创建)
+.omo/mcp/mcp.db   (WAL 模式，自动创建)
 ```
 
 ### 表结构
@@ -325,7 +325,7 @@ MCP 的相关配置存储在两个地方：
 
 | 配置 | 位置 | 说明 |
 |------|------|------|
-| Server 配置 | SQLite (`.sisyphus/mcp/mcp.db`) | 通过 Web UI 管理，重启不丢失 |
+| Server 配置 | SQLite (`.omo/mcp/mcp.db`) | 通过 Web UI 管理，重启不丢失 |
 | 传输模式 | Server 配置字段 | 每个 server 独立设置 |
 | 连接超时 | Server 配置字段 | 每个 server 独立设置（默认 60s） |
 

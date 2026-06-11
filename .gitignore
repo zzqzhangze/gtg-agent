@@ -30,6 +30,7 @@ wheels/
 /.omo/mcp/
 /.omo/skills/
 /.omo/run-continuation/
+/data
 
 # ── Legacy data directory (migrated to .omo) ──
 .sisyphus/

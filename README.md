@@ -33,7 +33,7 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
 ```
 
 > 意图分析使用 LLM 分类，支持 `chat` / `compute` / `tool_task` / `code_exec` / `data_analysis` / `multi_step`。
-> 沙箱模板根据任务类型动态选择。对话消息持久化到 `.sisyphus/sessions/`，通过 `session_id` 隔离。
+> 沙箱模板根据任务类型动态选择。对话消息持久化到 `.omo/sessions/graph.db`，通过 `session_id` 隔离。
 > Web UI 通过 `GET /` 访问。
 
 ## 快速开始
@@ -170,7 +170,7 @@ my_deep_agent/
 │   └── skills/         # Skills 技能系统
 │       ├── __init__.py
 │       └── loader.py   # 技能发现与沙箱上传
-├── .sisyphus/
+├── .omo/              # 运行时数据（sessions/mcp/skills）+ 开发文档（plans/workflows）
 │   ├── sessions/       # 对话消息持久化数据库（自动创建）
 │   ├── plans/          # 实施计划（活文档）
 │   ├── skills/         # 技能 SKILL.md 文件
@@ -184,4 +184,4 @@ my_deep_agent/
 
 ## 许可
 
-MIT
+[MIT](LICENSE)

@@ -77,28 +77,9 @@ SANDBOX_API_URL=http://127.0.0.1:8080
 # SANDBOX_USE_SERVER_PROXY=false   # 是否通过代理连接沙箱
 ```
 
-### 启动沙箱服务
+### 部署
 
-项目使用 [OpenSandbox](https://open-sandbox.ai) 作为沙箱执行环境。
-
-```bash
-# 生成配置（首次运行）
-uvx opensandbox-server init-config ~/.sandbox.toml --example docker
-
-# 启动服务（后台运行）
-uvx opensandbox-server &
-```
-
-> Windows 用户需先安装 Docker Desktop 并启用 WSL2 后端。
-> 首次启动会自动拉取沙箱执行镜像（约 2-3 分钟）。
-
-验证服务是否就绪：
-
-```bash
-curl http://127.0.0.1:8080/v1/health
-```
-
-如果 OpenSandbox 配置需要修改，编辑 `~/.sandbox.toml` 即可。详细配置参考[官方文档](https://open-sandbox.ai/getting-started/configuration)。
+完整部署步骤（环境准备、沙箱服务、配置说明等）见 [`docs/deployment.md`](docs/deployment.md)。
 
 ### 运行
 
@@ -208,7 +189,8 @@ gtg_agent/
 │   ├── workflows/      # 工作流规范
 │   └── mcp/            # MCP 配置数据库（自动创建）
 ├── downloads/          # 沙箱结果文件下载目录（自动创建）
-└── docs/               # 备选方案、设计文档存档、优化方案
+└── docs/               # 部署指南、设计文档、优化方案
+    └── deployment.md   # 完整部署步骤
 ```
 
 > AI 行为指令见 [AGENTS.md](AGENTS.md)，开发参考见 [CONTRIBUTING.md](CONTRIBUTING.md)。

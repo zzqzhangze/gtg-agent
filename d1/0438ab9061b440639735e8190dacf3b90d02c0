@@ -1,0 +1,25 @@
+AGENTS.md
+  s_a551f8cd75af6d::t_c04b3cc515b5e8 3
+  s_a551f8cd75af6d::t_5307a1a829cab6 7-8,13-14,16,18,22-24,26,28,61,66
+  s_a551f8cd75af6d::t_ff9209353c872f 30,32-37,39,41,43-48,50
+CONTRIBUTING.md
+  s_a551f8cd75af6d::t_37af8c213e1f54 1-61
+README.md
+  s_a551f8cd75af6d::t_b0bc425f1967e6 156-157,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d10438ab9061b440639735e8190dacf3b90d02c0",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

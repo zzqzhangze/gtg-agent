@@ -55,7 +55,11 @@ OpenSandbox 配置位于 `~/.sandbox.toml`，如需修改（例如 Docker 网络
 
 ## 3. 配置 GTG Agent
 
-创建 `config.env` 文件（可参考根目录下的 `config.env` 模板），按需填写：
+将 `config.env.example` 复制为 `config.env`，然后按需编辑：
+
+```bash
+cp config.env.example config.env
+```
 
 ```env
 # ── LLM ──────────────────────────────────────────────────────────────
@@ -157,6 +161,74 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/chat \
   -F "message=你好"
 ```
+
+---
+
+## 6. 离线部署
+
+适用于目标机器无法访问互联网的场景。需要一台同架构的联网机器作为「中转机」提前准备物料。
+
+### 6.1 准备物料（在中转机上操作）
+
+```bash
+# 克隆代码仓库
+git clone https://github.com/zzqzhangze/gtg-agent.git
+cd gtg-agent
+
+# 导出锁定的依赖列表
+uv export --frozen --no-dev > requirements.txt
+
+# 下载所有 Python 包到本地目录
+uv pip download -r requirements.txt -d ./offline-packages/
+
+# 下载 uv 二进制（如目标机未安装 uv）
+# 从 https://github.com/astral-sh/uv/releases 下载对应平台版本放到 ./offline-uv/
+
+# 拉取并导出沙箱 Docker 镜像
+docker pull sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2
+docker save sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2 -o sandbox-image.tar
+
+# 下载 OpenSandbox 服务离线安装包
+# 从中转机缓存复制：~/.cache/uv/ 下 opensandbox-server 相关 wheel 已在 offline-packages/ 中
+```
+
+### 6.2 将物料传输到目标机
+
+将以下内容通过 U 盘、内网 SCP / Rsync 等方式传输到目标机：
+
+```
+gtg-agent/                  # 项目代码
+gtg-agent/offline-packages/ # Python 依赖包目录
+sandbox-image.tar           # Docker 镜像
+offline-uv/                 # （可选）uv 二进制
+```
+
+### 6.3 在目标机上离线安装
+
+```bash
+# 1. 安装 uv（如目标机尚未安装）
+# 将离线下载的 uv 二进制放到 PATH 中，或：
+sudo cp offline-uv/uv /usr/local/bin/
+
+# 2. 创建虚拟环境并从本地安装依赖
+cd gtg-agent
+uv venv
+uv pip install --no-index --find-links ./offline-packages/ -r requirements.txt
+
+# 3. 加载 Docker 镜像
+docker load -i /path/to/sandbox-image.tar
+
+# 4. 配置并启动 OpenSandbox 服务
+uvx opensandbox-server init-config ~/.sandbox.toml --example docker
+uvx opensandbox-server &
+
+# 5. 后续步骤同在线部署：配置 config.env → 启动 GTG Agent
+```
+
+> **提示**：
+> - 中转机与目标机的操作系统和架构（x86_64 / arm64）必须一致，否则下载的 Python 包可能不兼容
+> - 如需更新依赖，在中转机上重新执行 `uv sync && uv export && uv pip download` 并重新传输
+> - OpenSandbox 首次运行可能需要额外拉取 execd 镜像（`~/.sandbox.toml` 中 `execd_image`），同样需要在中转机上提前 `docker pull` + `docker save`
 
 ---
 

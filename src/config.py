@@ -32,6 +32,9 @@ class Settings:
     sandbox_api_key: str = "my-secret-api-key-007"
     sandbox_use_server_proxy: bool = True
 
+    # 沙箱 Docker 镜像地址：可配置为私有镜像仓库或官方镜像
+    sandbox_image: str = "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2"
+
     # 沙箱生命周期超时（秒）：容器创建后多久自动销毁。
     # 如果任务耗时较长，可以调大这个值，防止智能体没跑完沙箱就被回收。
     sandbox_lifetime_seconds: int = 3600  # 1 hour
@@ -66,6 +69,7 @@ class Settings:
             model_name=os.getenv("MODEL_NAME", cls.model_name),
             sandbox_url=os.getenv("SANDBOX_API_URL", cls.sandbox_url),
             sandbox_api_key=os.getenv("SANDBOX_API_KEY", cls.sandbox_api_key),
+            sandbox_image=os.getenv("SANDBOX_IMAGE", cls.sandbox_image),
             sandbox_use_server_proxy=(
                     os.getenv("SANDBOX_USE_SERVER_PROXY", str(cls.sandbox_use_server_proxy)).lower()
                     in ("true", "1", "yes")

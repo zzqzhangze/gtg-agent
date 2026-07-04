@@ -13,20 +13,22 @@ from src.config import settings
 # 每个模板定义使用的 Docker 镜像、入口命令和环境变量。
 # 新加模板只需在此添加一条记录，无需修改 create_sandbox 逻辑。
 # =========================================================================
+_DEFAULT_IMAGE = settings.sandbox_image
+
 _TEMPLATE_REGISTRY: dict[str, dict[str, Any]] = {
     "python-sandbox": {
-        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "image": _DEFAULT_IMAGE,
         "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
         "env": {"PYTHON_VERSION": "3.11"},
     },
     "data-analysis": {
-        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "image": _DEFAULT_IMAGE,
         "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
         "env": {"PYTHON_VERSION": "3.11"},
         # TODO: 替换为专用数据分析镜像（预装 pandas/numpy/matplotlib）
     },
     "node-sandbox": {
-        "image": "sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2",
+        "image": _DEFAULT_IMAGE,
         "entrypoint": ["/opt/opensandbox/code-interpreter.sh"],
         "env": {"PYTHON_VERSION": "3.11"},
         # TODO: 替换为专用 Node.js 镜像（预装 node/npm）

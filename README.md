@@ -1,5 +1,12 @@
 # GTG Agent
 
+<p>
+  <img src="https://img.shields.io/badge/python-3.13-blue?logo=python" alt="Python 3.13">
+  <img src="https://img.shields.io/github/license/zzqzhangze/gtg-agent" alt="License">
+  <img src="https://img.shields.io/github/actions/workflow/status/zzqzhangze/gtg-agent/ci.yml?branch=master&label=CI" alt="CI">
+  <img src="https://img.shields.io/badge/uv-1.0+-blue?logo=uv" alt="uv">
+</p>
+
 AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Docker 沙箱安全隔离执行任务。
 
 ## 架构
@@ -68,6 +75,34 @@ MODEL_NAME=gpt-4o
 SANDBOX_API_URL=http://127.0.0.1:8080
 # SANDBOX_API_KEY=my-secret-api-key-007
 # SANDBOX_USE_SERVER_PROXY=false   # 是否通过代理连接沙箱
+```
+
+### 启动沙箱服务
+
+项目使用 [OpenSandbox](https://open-sandbox.ai) 作为沙箱执行环境。提供两种启动方式：
+
+**方案 A：Docker Compose（推荐）**
+
+```bash
+docker compose up -d
+```
+
+这会启动 OpenSandbox Server（`opensandbox/server:latest`），监听 `http://127.0.0.1:8080`，与 `config.env` 默认配置一致。
+
+> Windows 用户需先安装 Docker Desktop 并启用 WSL2 后端。
+
+**方案 B：直接安装运行**
+
+```bash
+pip install opensandbox-server
+opensandbox-server init-config ~/.sandbox.toml --example docker
+opensandbox-server
+```
+
+首次启动会自动拉取沙箱执行镜像。验证服务是否就绪：
+
+```bash
+curl http://127.0.0.1:8080/v1/health
 ```
 
 ### 运行

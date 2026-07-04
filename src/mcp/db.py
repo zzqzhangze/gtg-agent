@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +65,7 @@ def get_server(server_id: str) -> dict[str, Any] | None:
 def create_server(name: str, url: str, timeout: int = 60, transport_mode: str = "auto") -> dict[str, Any]:
     conn = _get_conn()
     sid = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.execute(
         "INSERT INTO mcp_servers (id, name, url, timeout, transport_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (sid, name, url, timeout, transport_mode, now, now),
@@ -85,7 +85,7 @@ def update_server(server_id: str, name: str | None = None, url: str | None = Non
     new_url = url if url is not None else existing["url"]
     new_timeout = timeout if timeout is not None else existing["timeout"]
     new_transport = transport_mode if transport_mode is not None else existing.get("transport_mode", "auto")
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.execute(
         "UPDATE mcp_servers SET name=?, url=?, timeout=?, transport_mode=?, updated_at=? WHERE id=?",
         (new_name, new_url, new_timeout, new_transport, now, server_id),

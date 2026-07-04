@@ -1,0 +1,22 @@
+README.en.md
+  s_a551f8cd75af6d::t_ce23649b7f7ce9 77,80-81,83-85,88,96
+  s_a551f8cd75af6d::t_96566c68e804a2 97
+README.md
+  s_a551f8cd75af6d::t_3c079b721d5c2e 82,85-86,88-90,93,95,101-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5700f887f5f997757012d78c78879b4d475a2ce",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

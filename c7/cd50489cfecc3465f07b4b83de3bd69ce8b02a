@@ -1,0 +1,29 @@
+README.md
+  s_a551f8cd75af6d::t_d5f0ba53e6abd4 47,77-78
+docs/deployment.md
+  s_a551f8cd75af6d::t_59f7b8bc78a821 90,93-94,96-97,100
+  s_a551f8cd75af6d::t_a7587b77d3f20c 29-53
+  s_a551f8cd75af6d::t_c588bfd2257665 16-22
+  s_a551f8cd75af6d::t_e674bedb7aed50 170-184
+  s_a551f8cd75af6d::t_0089453ae09a75 136-143
+  s_a551f8cd75af6d::t_f6633fbf68ebe4 5
+  s_a551f8cd75af6d::t_91fda13d5ea117 102-112,114
+  s_a551f8cd75af6d::t_c977d8da1e7fa8 124-135,144
+  s_a551f8cd75af6d::t_6915241a5e24fa 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c7cd50489cfecc3465f07b4b83de3bd69ce8b02a",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+docs/deployment.md
+  s_a551f8cd75af6d::t_7d8f549d5917d9 9-12
+  s_a551f8cd75af6d::t_6d7056f8555661 188-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "51545f7ebb58768b25e6eea8f809fb9e2905d4b9",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

@@ -6,7 +6,10 @@
 - [Docker Engine](https://docs.docker.com/engine/install/) 20.10+（沙箱运行环境）
 - 任意兼容 OpenAI 协议的 LLM 服务（Ollama / OpenAI / DeepSeek / vLLM 等）
 
-> Windows 用户需先安装 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) 并启用 WSL2 后端。
+> - **Windows**：安装 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) 并启用 WSL2 后端
+> - **macOS**：安装 [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/)
+> - **Linux (Ubuntu/Debian)**：`sudo apt install docker.io`，或参考[官方文档](https://docs.docker.com/engine/install/ubuntu/)
+> - **Linux (CentOS/RHEL/Fedora)**：参考[官方文档](https://docs.docker.com/engine/install/)
 
 ---
 
@@ -182,3 +185,17 @@ docker pull opensandbox/code-interpreter:latest
 ```
 
 拉取成功后重启 OpenSandbox 服务即可。
+
+**Q：`uv sync` 下载依赖太慢，怎么加速？**  
+配置国内 PyPI 镜像源，创建或编辑 `~/.config/uv/uv.toml`（Linux/macOS）或 `%APPDATA%\uv\uv.toml`（Windows）：
+
+```toml
+[[index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+```
+
+或在运行命令时临时指定：
+
+```bash
+uv sync --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+```

@@ -43,100 +43,48 @@ Intent classification supports: `chat` / `compute` / `tool_task` / `code_exec` /
 
 ## Quick Start
 
-### Prerequisites
-
-- Python >= 3.13
-- Any OpenAI-compatible LLM service (Ollama, OpenAI API, vLLM, Azure OpenAI, DeepSeek, etc.)
-- [OpenSandbox](https://open-sandbox.ai) sandbox service
-
-### Installation
-
 ```bash
-# Create .venv and install dependencies
+# 1. Install dependencies
 uv sync
+
+# 2. Edit config.env with your LLM endpoint (see docs/deployment.md for full config)
 ```
 
-### Configuration
-
-Copy `config.env` and edit it with your LLM endpoint:
-
-```env
-# ── LLM ──────────────────────────────────────────────────────────────
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_API_KEY=sk-xxxxx
-MODEL_NAME=gpt-4o
-
-# ── Sandbox ──────────────────────────────────────────────────────────
-SANDBOX_API_URL=http://127.0.0.1:8080
-# SANDBOX_API_KEY=my-secret-api-key-007
-# SANDBOX_USE_SERVER_PROXY=false
-```
-
-### Deployment
-
-See [`docs/deployment.md`](docs/deployment.md) for full setup instructions — prerequisites, LLM config, sandbox service, and troubleshooting.
-
-### Run
-
-**CLI mode (REPL):**
-
-```bash
-python main.py
-# Single execution with files
-python main.py "summarize this file" report.txt data.csv
-```
-
-REPL commands:
-
-| Command | Description |
-|---------|-------------|
-| `/file <path>` | Add a file to the conversation |
-| `/files` | List added files |
-| `/clear` | Clear file list |
-| `/history` | View conversation history |
-| `/history all` | View all persisted sessions |
-| `/history clear` | Clear current session history |
-| `/history clear --all` | Clear all session history |
-| `/help` | Show help |
-| `/exit` or Ctrl+C | Exit |
-
-**API server:**
-
-```bash
-uv run uvicorn api:app --host 0.0.0.0 --port 8000 --reload
-```
-
-API endpoints:
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Web chat UI |
-| POST | `/chat` | Send message + upload files |
-| GET | `/health` | Health check |
-| GET | `/files/{session_id}/{filename}` | Download processed files |
-| DELETE | `/sessions/{session_id}/history` | Delete session history |
-| GET | `/mcp/` | MCP management UI |
+Deployment guide (sandbox service, environment variables, FAQ): [`docs/deployment.md`](docs/deployment.md).
 
 ## Project Structure
 
 ```
 gtg_agent/
-├── api.py              # FastAPI entry point
+├── api.py              # FastAPI entry point (serves Web UI static files)
 ├── main.py             # CLI entry point
-├── static/             # Web UI frontend
+├── static/             # Web UI frontend files
 ├── pyproject.toml      # Project metadata & dependencies
-├── config.env          # Environment config
-├── AGENTS.md           # AI behavior instructions
-├── CONTRIBUTING.md     # Development reference
+├── config.env          # Environment configuration
+├── AGENTS.md           # AI behavior instructions (concise)
+├── CONTRIBUTING.md     # Development reference (concepts, Skills, MCP)
 ├── src/                # Core source code
-│   ├── config.py       # Centralized config
+│   ├── config.py       # Centralized config (env vars read here)
 │   ├── llm.py          # LLM compatibility layer
-│   ├── sandbox/        # Sandbox abstraction
-│   ├── agent/          # LangGraph orchestration
-│   └── mcp/            # MCP protocol integration
-├── tests/              # Test suite
-├── .omo/               # Runtime data & docs
+│   ├── sandbox/        # Sandbox abstraction (async→sync bridge + template registry)
+│   ├── agent/          # LangGraph orchestration (state machine)
+│   │   ├── state.py    # Shared state (ledger)
+│   │   ├── nodes.py    # Processing nodes (8 workshops)
+│   │   └── graph.py    # Node wiring and routing
+│   ├── mcp/            # MCP protocol integration
+│   │   ├── client.py   # Dual-transport client (streamable-http + SSE)
+│   │   ├── adapter.py  # MCPTool(BaseTool) adapter
+│   │   ├── db.py       # SQLite persistence
+│   │   └── router.py   # FastAPI management routes
+│   └── skills/         # Skills system
+│       ├── __init__.py
+│       └── loader.py   # Skill discovery & sandbox upload
+├── .omo/              # Runtime data (sessions/mcp/skills) + dev docs (plans/workflows)
+└── docs/               # Deployment guide, design docs
+    └── deployment.md   # Deployment guide
 ```
+
+> AI behavior instructions: [AGENTS.md](AGENTS.md). Development reference: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

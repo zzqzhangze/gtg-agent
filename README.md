@@ -153,7 +153,8 @@ gtg_agent/
 ├── uv.lock             # uv 依赖锁定文件
 ├── .python-version     # Python 版本声明
 ├── config.env          # 环境变量配置
-├── AGENTS.md           # AI 行为指令
+├── AGENTS.md           # AI 行为指令（精简指令集）
+├── CONTRIBUTING.md     # 开发参考（核心概念、Skills、MCP）
 ├── src/                # 核心代码
 │   ├── config.py       # 集中配置（所有环境变量在此读取）
 │   ├── llm.py          # LLM 兼容层（多厂商 reasoning 透传）
@@ -180,7 +181,7 @@ gtg_agent/
 └── docs/               # 备选方案、设计文档存档、优化方案
 ```
 
-> AI 行为指令（文档铁律、代码约束、扩展工作流）见 [AGENTS.md](AGENTS.md)。
+> AI 行为指令见 [AGENTS.md](AGENTS.md)，开发参考见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可
 

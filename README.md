@@ -79,31 +79,26 @@ SANDBOX_API_URL=http://127.0.0.1:8080
 
 ### 启动沙箱服务
 
-项目使用 [OpenSandbox](https://open-sandbox.ai) 作为沙箱执行环境。提供两种启动方式：
-
-**方案 A：Docker Compose（推荐）**
+项目使用 [OpenSandbox](https://open-sandbox.ai) 作为沙箱执行环境。
 
 ```bash
-docker compose up -d
-```
+# 生成配置（首次运行）
+uvx opensandbox-server init-config ~/.sandbox.toml --example docker
 
-这会启动 OpenSandbox Server（`opensandbox/server:latest`），监听 `http://127.0.0.1:8080`，与 `config.env` 默认配置一致。
+# 启动服务（后台运行）
+uvx opensandbox-server &
+```
 
 > Windows 用户需先安装 Docker Desktop 并启用 WSL2 后端。
+> 首次启动会自动拉取沙箱执行镜像（约 2-3 分钟）。
 
-**方案 B：直接安装运行**
-
-```bash
-pip install opensandbox-server
-opensandbox-server init-config ~/.sandbox.toml --example docker
-opensandbox-server
-```
-
-首次启动会自动拉取沙箱执行镜像。验证服务是否就绪：
+验证服务是否就绪：
 
 ```bash
 curl http://127.0.0.1:8080/v1/health
 ```
+
+如果 OpenSandbox 配置需要修改，编辑 `~/.sandbox.toml` 即可。详细配置参考[官方文档](https://open-sandbox.ai/getting-started/configuration)。
 
 ### 运行
 

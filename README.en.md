@@ -74,29 +74,26 @@ SANDBOX_API_URL=http://127.0.0.1:8080
 
 ### Start the Sandbox
 
-**Option A: Docker Compose (recommended)**
+### Start the Sandbox
 
 ```bash
-docker compose up -d
-```
+# Generate config (first run only)
+uvx opensandbox-server init-config ~/.sandbox.toml --example docker
 
-This starts the OpenSandbox Server at `http://127.0.0.1:8080`, matching the default `config.env`.
+# Start the server (background)
+uvx opensandbox-server &
+```
 
 > Windows users need Docker Desktop with WSL2 backend.
-
-**Option B: Direct install**
-
-```bash
-pip install opensandbox-server
-opensandbox-server init-config ~/.sandbox.toml --example docker
-opensandbox-server
-```
+> The first start pulls the sandbox runtime images (~2-3 min).
 
 Verify the service is ready:
 
 ```bash
 curl http://127.0.0.1:8080/v1/health
 ```
+
+Edit `~/.sandbox.toml` to customize. See the [official config docs](https://open-sandbox.ai/getting-started/configuration) for details.
 
 ### Run
 
@@ -158,7 +155,6 @@ gtg_agent/
 │   └── mcp/            # MCP protocol integration
 ├── tests/              # Test suite
 ├── .omo/               # Runtime data & docs
-└── docker-compose.yml  # OpenSandbox deployment
 ```
 
 ## License

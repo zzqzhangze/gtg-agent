@@ -1,0 +1,23 @@
+docs/agent-pipeline-architecture.md
+  s_a551f8cd75af6d::t_bc3bf817dc8e46 75-83,89-91,102-112,118,120-123,126,131,163-164
+docs/design/mcp-optimization-plan.md
+  s_a551f8cd75af6d::t_0415af82924f30 22,57
+docs/mcp-system.md
+  s_a551f8cd75af6d::t_a2bf8403ff2d8f 269,281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d9a0302767205c13c98798fa7268a81935441616",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

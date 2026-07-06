@@ -5,7 +5,13 @@
 
 ---
 
-## P0 — 功能缺陷（必须修）
+> ⚡ **实现状态（feat/mcp-optimization, 2026-07-06）**：
+> P0 ✅、P1.1 ✅、P1.2 ✅、P1.3 ✅、P1.4 ❌（已取消）
+> 合并请求参考 [feat/mcp-optimization 分支](.)。
+
+---
+
+## P0 — 功能缺陷（必须修）✅
 
 ### MCP 工具被沙箱路径绑架
 
@@ -19,24 +25,20 @@ analyze_intent
                                                    └─ create_deep_agent(tools=MCP)  ← ✅ 有 MCP
 ```
 
-`build_tools_for_server()` 只在 `run_agent` 的沙箱分支（`src/agent/nodes.py:427`）中调用。
+`build_tools_for_server()` 只在 `run_agent` 的沙箱分支中调用（原 `nodes.py:427`）。
 如果 `analyze_intent` 把用户请求分类为 `chat` 或 `compute`，走 Route B（裸 `llm.invoke()`），**MCP 工具完全不加载**，LLM 看不到它们。
 
 **后果**：用户连好 MCP 工具后问"现在几点"，因为分类为 `chat`，LLM 回答"我不知道"而不是调 `get_current_time`。
 
-**方案**：Route B 也要加载 MCP 工具，用 LLM 原生的 `bind_tools` / function calling 直接执行，不经过沙箱。
+**实现**：
 
-```python
-# Route B 伪代码
-mcp_tools = load_enabled_mcp_tools()
-if mcp_tools:
-    llm_with_tools = llm.bind_tools(mcp_tools)
-    response = llm_with_tools.invoke(state["messages"])
-    # 如果 LLM 选择调 tool → 执行 → 返回结果
-    # 否则 → 返回纯文本
-else:
-    response = llm.invoke(state["messages"])
-```
+1. 提取共享辅助函数 `_load_mcp_tools()`（`nodes.py`）— 内部用 `ThreadPoolExecutor` 并行连接所有已启用 server，返回 `list[BaseTool]`
+2. Route B 中加载 MCP 工具：
+   - 有工具 → `create_deep_agent(tools=mcp_tools)` 执行（复用 `run_agent_with_mcp` 模式，提供完整 agent 循环和 tool calling 能力）
+   - 无工具 → 回退 `llm.invoke()`（保留原有行为）
+3. Route A 和 `run_agent_with_mcp` 也改用 `_load_mcp_tools()`，消除重复的串行循环
+
+> **为什么不用 `bind_tools`？** `create_deep_agent` 提供了一致的 agent 包装（工具调用循环、错误处理、结构化输出），`bind_tools` 只绑定工具到一次 invoke，如果需要多轮交互（工具调工具）就不够。
 
 **涉及文件**：`src/agent/nodes.py`（run_agent 函数）
 
@@ -44,40 +46,71 @@ else:
 
 ## P1 — 效率浪费（应该修）
 
-### 1. 每次对话都重建 MCP 连接
+### 1. 每次对话都重建 MCP 连接 ✅
 
 **现状**：`build_tools_for_server()` 每次调用都 `new MCPClient()` → `connect()`（`initialize` 握手 + 拿 session_id）。用户每发一条消息，agent 每跑一轮，都会重新握手。
 
 **后果**：n 条消息 = n 次 initialize 往返，MCP 服务端创建 n 个 session。
 
-**方案**：模块级 LRU 缓存或按 server URL + session 维度的连接池。缓存生命周期与 Web UI 中"断开连接"操作绑定。
+**实现**（`src/mcp/adapter.py`）：
 
-### 2. MCP 与 Skills 串行加载
-
-**现状**（`src/agent/nodes.py:411-443`）：
-
-```python
-# ── Skills loading ──           # 等 Skills 加载完
-...
-# ── MCP tools loading ──        # 再等 MCP 加载完
-...
+```
+_CLIENT_CACHE: dict[tuple[str, str], MCPClient]  ← 模块级 dict，key=(server_name, url)
 ```
 
-两者无依赖，可以并行。
+- `build_tools_for_server()` 先从缓存查，命中直接复用 client（连接已建立，tool list 已就绪）
+- 未命中则创建新 client → connect → 获取 tool list → 入缓存
+- 新增 `clear_client_cache()` 清空所有缓存连接（供 Web UI "断开连接"调用）
+- 使用 `tool_cache_key` 参数区分调用方：相同 server 在不同调用场景不会互相污染
 
-**方案**：用 `threading.Thread` 或 `concurrent.futures` 让 Skills 和 MCP 同时加载。
+> **为什么不用 LRU？** 单次 agent 调用周期极短，模块级 dict 即可覆盖重用场景；LRU 的过期策略在当前架构下不增加价值。
 
-### 3. 多 MCP Server 串行连接
+### 2. MCP 与 Skills 串行加载 ✅
+
+**现状**（原 `nodes.py:411-443`）：Skills 上传完成 → MCP 工具加载，两者无依赖却串行等待。
+
+**实现**：Route A 中用 `ThreadPoolExecutor(max_workers=2)` 同时提交 Skills 加载和 MCP 工具加载两个 task：
+
+```python
+with ThreadPoolExecutor(max_workers=2) as pool:
+    skills_future = pool.submit(_load_skills, ...)    # 上传 Skills 到沙箱
+    mcp_future = pool.submit(_load_mcp_tools, ...)     # 并行连接 MCP server
+    skills_result = skills_future.result()
+    mcp_tools = mcp_future.result()
+```
+
+各自有独立 `try/except`，一个失败不影响另一个。
+
+### 3. 多 MCP Server 串行连接 ✅
 
 **现状**：`for server in get_enabled_servers(): build_tools_for_server(server)` — 逐个连接，一个超时卡住后面所有。
 
-**方案**：用 `concurrent.futures.ThreadPoolExecutor` 并行连接，设置独立超时。
+**实现**：共享函数 `_load_mcp_tools()` 内部使用 `ThreadPoolExecutor` 并行连接所有 server，每个 server 独立超时：
 
-### 4. 无连接状态缓存
+```python
+def _load_mcp_tools(...) -> list[BaseTool]:
+    servers = get_enabled_servers()
+    with ThreadPoolExecutor(max_workers=len(servers)) as pool:
+        futures = {pool.submit(build_tools_for_server, s): s for s in servers}
+        for future in as_completed(futures):
+            try:
+                tools.extend(future.result(timeout=30))
+            except Exception:
+                log(f"Server {futures[future]} failed")
+    return tools
+```
+
+该函数同时替换 Route A 和 `run_agent_with_mcp` 中的原始串行循环。
+
+### 4. 无连接状态缓存 ❌（已取消）
 
 **现状**：`MCPClient` 实例用完即丢（GC 回收），session_id 不持久化。
 
-**方案**：将 session_id 存入 `mcp_tools` 或 `mcp_servers` 表，下次启动时复用（对 streamable HTTP 有效）。
+**取消原因**：
+- 模块级 `_CLIENT_CACHE` 已覆盖单次 agent 调用内的重复连接问题（P1.1）
+- 跨调用复用 session_id 需要修改 `MCPClient.connect()` 核心路径，增加脆弱性
+- streamable HTTP session 可能被服务端随时过期，收益不确定
+- 当前方案（缓存 client 实例 + 进程级缓存）是更稳的 trade-off
 
 ---
 
@@ -113,27 +146,27 @@ else:
 
 ## 优先级矩阵
 
-| 编号 | 维度 | 影响面 | 实现成本 | 优先级 |
-|------|------|--------|---------|--------|
-| P0 | chat/compute 无 MCP 工具 | 功能缺失 | 低（~20 行） | 🔴 **最高** |
-| P1.1 | 重复连接 | 效率 | 中（缓存层） | 🟡 |
-| P1.2 | Skills/MCP 串行 | 效率 | 低（并行加载） | 🟡 |
-| P1.3 | 多 Server 串行 | 效率 | 低（ThreadPool） | 🟡 |
-| P1.4 | 无连接缓存 | 效率 | 中（DB 存 session） | 🟢 |
-| P2.1 | 失败可恢复 | 体验 | 低 | 🟢 |
-| P2.2 | 异步/流式 | 体验 | 高（架构改动） | 🟢 |
-| P2.3 | 工具透明化 | 可观测性 | 中 | 🟢 |
-| P2.4 | 意图感知 MCP | 准确率 | 低 | 🟢 |
+| 编号 | 维度 | 影响面 | 实现成本 | 优先级 | 状态 |
+|------|------|--------|---------|--------|------|
+| P0 | chat/compute 无 MCP 工具 | 功能缺失 | 中（~40 行 + 提取共享函数） | 🔴 **最高** | ✅ |
+| P1.1 | 重复连接 | 效率 | 中（模块级 dict 缓存） | 🟡 | ✅ |
+| P1.2 | Skills/MCP 串行 | 效率 | 低（并行加载） | 🟡 | ✅ |
+| P1.3 | 多 Server 串行 | 效率 | 低（ThreadPool） | 🟡 | ✅ |
+| P1.4 | 无连接缓存 | 效率 | 中（DB 存 session） | 🟢 | ❌ 取消 |
+| P2.1 | 失败可恢复 | 体验 | 低 | 🟢 | ⏳ |
+| P2.2 | 异步/流式 | 体验 | 高（架构改动） | 🟢 | ⏳ |
+| P2.3 | 工具透明化 | 可观测性 | 中 | 🟢 | ⏳ |
+| P2.4 | 意图感知 MCP | 准确率 | 低 | 🟢 | ⏳ |
 
 ---
 
 ## 涉及文件清单
 
-| 文件 | 相关优化 |
+| 文件 | 实际变更 |
 |------|---------|
-| `src/agent/nodes.py` | P0（Route B 加 MCP）、P1.2（并行加载） |
-| `src/mcp/adapter.py` | P2.1（异常处理）、P2.2（异步） |
-| `src/mcp/client.py` | P1.1（连接缓存）、P1.4（session 持久化） |
-| `src/mcp/db.py` | P1.4（session_id 字段） |
-| `src/mcp/router.py` | P1.1（连接生命周期管理） |
-| `src/agent/graph.py` | P0（路由逻辑） |
+| `src/agent/nodes.py` | P0 ✅、P1.2 ✅、P1.3 ✅ — `_load_mcp_tools()` 共享函数、Route B MCP 工具、Route A Skills/MCP 并行 |
+| `src/mcp/adapter.py` | P1.1 ✅ — 模块级 `_CLIENT_CACHE`、`build_tools_for_server()` 缓存逻辑、`clear_client_cache()` |
+| `src/mcp/client.py` | 无变更（缓存由 adapter.py 管理，无需修改 client） |
+| `src/mcp/db.py` | 无变更（P1.4 取消） |
+| `src/mcp/router.py` | 无变更（当前缓存生命周期由 process 管理，不需要 router 介入） |
+| `src/agent/graph.py` | 无变更（路由逻辑不需要修改） |

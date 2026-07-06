@@ -1,0 +1,25 @@
+src/agent/nodes.py
+  s_a551f8cd75af6d::t_14a961aeec4bbf 37,39-43,45-53
+  s_a551f8cd75af6d::t_2877891b1a06fa 38,44
+  s_a551f8cd75af6d::t_ffb5fdb87737a1 2,19-36
+  s_a551f8cd75af6d::t_d43879237ca962 447,450-467,469-474,503-526,545-546
+src/mcp/adapter.py
+  s_a551f8cd75af6d::t_becf22be373bf5 11-14
+  s_a551f8cd75af6d::t_1b80bda88858e7 88-91,94-109,118,120-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b591ba1fa52dbe92307eb188670341be85b82c95",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

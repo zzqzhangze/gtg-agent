@@ -8,6 +8,7 @@
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | partial | P0 | — | 2026-05-29 | 2026-06-03（方向一/四/五 ✅ → master；方向二/三/六/七 待定） |
+| [mcp-optimization.md](./mcp-optimization.md) | in_progress | P1 | feat/mcp-optimization | 2026-07-06 | 2026-07-06（P0+P1.1~1.3 done; P1.4 pending） |
 
 ## 已完成 Plan
 

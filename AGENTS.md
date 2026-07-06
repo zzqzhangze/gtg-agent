@@ -73,4 +73,5 @@
 | MCP 配置/传输模式/工具管理 | `CONTRIBUTING.md`（### MCP 工具管理） |
 | Skills 新增 | `CONTRIBUTING.md`（### 新增技能） |
 | 部署/沙箱/环境变量 | `docs/deployment.md` |
+| 分支管理（拉分支/合入/命名规范） | `.omo/workflows/branch-management.md` |
 | 分支/计划执行状态 | `.omo/plans/INDEX.md` |

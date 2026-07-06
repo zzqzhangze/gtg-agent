@@ -1,0 +1,25 @@
+src/agent/graph.py
+  s_a551f8cd75af6d::t_9d946d987e7488 16-21
+  s_a551f8cd75af6d::t_21f8185c58b242 22-24
+  s_a551f8cd75af6d::t_030084d608648e 25-26,89-97
+src/agent/nodes.py
+  s_a551f8cd75af6d::t_5816dd2018cbc6 537,602,658,786-787
+static/style.css
+  s_a551f8cd75af6d::t_656cd7415115b4 701,704-706,708-709,711-731,739-740,746,748,752,764,775-785
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b6c83c22200c90f4ca88bafbd9057f80a954d0ac",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}

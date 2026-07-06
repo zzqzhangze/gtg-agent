@@ -8,7 +8,6 @@
 | Plan | 状态 | 优先级 | 分支 | 创建日期 | 最后更新 |
 |------|------|--------|------|----------|----------|
 | [agent-intelligence-upgrade.md](./agent-intelligence-upgrade.md) | partial | P0 | — | 2026-05-29 | 2026-06-03（方向一/四/五 ✅ → master；方向二/三/六/七 待定） |
-| [mcp-optimization.md](./mcp-optimization.md) | completed | P1 | feat/mcp-optimization | 2026-07-06 | 2026-07-06（P0+P1.1~1.3 ✅; P1.4 ❌ 收益不足取消） |
 
 ## 已完成 Plan
 
@@ -18,6 +17,7 @@
 | [download-optimization.md](./download-optimization.md) | completed | P2 | merged → master (06d7692) | 2026-06-01 | 2026-06-01 |
 | [skills-system.md](./skills-system.md) | completed (v1) | P1 | merged → master (dcb646e) | 2026-06-01 | 2026-06-02 |
 | [mcp-tool-integration.md](./mcp-tool-integration.md) | completed (v1) | P1 | merged → master (abce98e) | 2026-06-01 | 2026-06-02 |
+| [mcp-optimization.md](./mcp-optimization.md) | completed | P1 | merged → master (b6233e9) | 2026-07-06 | 2026-07-06 |
 
 ## 状态说明
 

@@ -533,8 +533,8 @@ def cleanup_sandbox(state: SandboxAgentState) -> dict[str, Any]:
     作用：无论是正常结束还是中途报错，最终都会流经这里，负责强制删除 Docker 容器，防止内存泄露。
     返回：把账本上的 sandbox_id 清空。
     """
-    print("[STATUS] cleanup_sandbox")
     if state.get("sandbox_id"):
+        print("[STATUS] cleanup_sandbox")
         print(f"正在清理并销毁沙箱: {state['sandbox_id']}...")
         client = SandboxClient()
         try:
@@ -596,10 +596,10 @@ def detect_output_files(state: SandboxAgentState) -> dict[str, Any]:
     【车间 6：自动发现沙箱输出文件】
     作用：扫描沙箱输出目录，识别每个文件的路径和类型，返回结构化列表。
     """
-    print("[STATUS] detect_files")
     if not state.get("sandbox_id"):
         print("[文件发现] 没有可用沙箱，跳过。")
         return {"output_files": [], "execution_phase": "detect_files"}
+    print("[STATUS] detect_files")
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -652,10 +652,10 @@ def analyze_output_files(state: SandboxAgentState) -> dict[str, Any]:
     作用：读取每个文件的预览，用 LLM 判断价值并生成中文摘要。
     高价值文件标记后由 download_files 下载，低价值仅列路径。
     """
-    print("[STATUS] analyze_files")
     output_files: list[dict[str, Any]] = state.get("output_files", [])
     if not output_files or not state.get("sandbox_id"):
         return {"execution_phase": "analyze_files"}
+    print("[STATUS] analyze_files")
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])
@@ -774,7 +774,6 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     作用：只下载高价值文件到本地 downloads/ 目录，低价值仅打印路径。
     返回：记录下载结果到 downloaded_paths 字段。
     """
-    print("[STATUS] download_files")
     output_files: list[dict[str, Any]] = state.get("output_files", [])
     if not output_files:
         print("[文件下载] 没有需要下载的文件，跳过。")
@@ -783,6 +782,8 @@ def download_files(state: SandboxAgentState) -> dict[str, Any]:
     if not state.get("sandbox_id"):
         print("[文件下载] 错误：没有可用的沙箱。")
         return {"downloaded_paths": [], "execution_phase": "download_files"}
+
+    print("[STATUS] download_files")
 
     client = SandboxClient()
     sb = client.get_sandbox(name=state["sandbox_id"])

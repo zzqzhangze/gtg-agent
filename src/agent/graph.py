@@ -13,6 +13,17 @@ from src.agent.nodes import (
 )
 
 
+def route_after_run_agent(state: SandboxAgentState) -> str:
+    """
+    run_agent 之后的路由器：
+    如果有沙箱 → 继续走文件发现/分析/下载流程
+    没有沙箱（chat/compute）→ 直接跳到清理（实际为无操作，但不中断图流程）
+    """
+    if state.get("sandbox_id"):
+        return "detect_output_files"
+    return "cleanup_sandbox"
+
+
 def route_after_analysis(state: SandboxAgentState) -> str:
     """
     自定义的轨道道岔（路由器）：
@@ -75,8 +86,15 @@ def build_graph(*, checkpointer=None):
     # MCP 工具执行完，直接走清理（无沙箱，无需文件发现）
     builder.add_edge("run_agent_with_mcp", "cleanup_sandbox")
 
-    # 大模型跑完，自动发现沙箱内新产生的文件
-    builder.add_edge("run_agent", "detect_output_files")
+    # 大模型跑完，有沙箱则自动发现输出文件，无沙箱（chat/compute）跳过文件步骤
+    builder.add_conditional_edges(
+        "run_agent",
+        route_after_run_agent,
+        {
+            "detect_output_files": "detect_output_files",
+            "cleanup_sandbox": "cleanup_sandbox",
+        }
+    )
 
     # 发现完文件，先智能分析（预览+价值判断+摘要），再下载
     builder.add_edge("detect_output_files", "analyze_output_files")

@@ -72,21 +72,23 @@ flowchart LR
 
 | 节点 | 文件名（行号） | 职责 |
 |------|---------------|------|
-| `analyze_intent` | nodes.py:268 | 用 LLM 分类用户意图 → 决定路径 |
-| `create_sandbox` | nodes.py:348 | 根据模板名创建 Docker 沙箱 |
-| `upload_files` | nodes.py:472 | 将用户文件上传到沙箱 `/workspace/input/` |
-| `run_agent` | nodes.py:374 | **核心大脑**：有沙箱用 DeepAgent，否则直接 LLM |
-| `run_agent_with_mcp` | nodes.py:455 | **MCP 工具路径**：绑 MCP 工具但不挂沙箱，用于天气/数据库查询等 |
-| `detect_output_files` | nodes.py:509 | 扫描沙箱 `/workspace/output/` 发现新文件 |
-| `analyze_output_files` | nodes.py:560 | 用 LLM 判断文件价值 + 生成摘要 |
-| `download_files` | nodes.py:676 | 高价值文件下载到本地 `downloads/` |
-| `cleanup_sandbox` | nodes.py:507 | 强制销毁沙箱容器，防止泄露 |
+| `analyze_intent` | nodes.py:271 | 用 LLM 分类用户意图 → 决定路径 |
+| `create_sandbox` | nodes.py:362 | 根据模板名创建 Docker 沙箱 |
+| `upload_files` | nodes.py:551 | 将用户文件上传到沙箱 `/workspace/input/` |
+| `run_agent` | nodes.py:391 | **核心大脑**：有沙箱用 DeepAgent，否则直接 LLM |
+| `run_agent_with_mcp` | nodes.py:477 | **MCP 工具路径**：绑 MCP 工具但不挂沙箱，用于天气/数据库查询等 |
+| `detect_output_files` | nodes.py:594 | 扫描沙箱 `/workspace/output/` 发现新文件 |
+| `analyze_output_files` | nodes.py:649 | 用 LLM 判断文件价值 + 生成摘要 |
+| `download_files` | nodes.py:771 | 高价值文件下载到本地 `downloads/` |
+| `cleanup_sandbox` | nodes.py:530 | 强制销毁沙箱容器，防止泄露 |
 
 ---
 
 ## 4. 路由逻辑（Conditional Edge）
 
-`graph.py:16` — `route_after_analysis()` 是三岔路口：
+### 4.1 第一道岔：`route_after_analysis()`（graph.py:27）
+
+`analyze_intent` 之后的第一道岔，根据 `task_type` 分流：
 
 ```python
 if task_type == "tool_task":
@@ -97,23 +99,36 @@ if task_type in sandbox_types:
 return "run_agent"                        # Route B
 ```
 
-**Route A（沙箱路径）**：
+### 4.2 第二道岔：`route_after_run_agent()`（graph.py:16）
+
+`run_agent` 之后的第二道岔，根据是否有沙箱决定是否跳过文件发现流程：
+
+```python
+if state.get("sandbox_id"):
+    return "detect_output_files"   # 有沙箱 → 继续文件发现/分析/下载
+return "cleanup_sandbox"           # 无沙箱 → 直接跳清理（chat/compute）
+```
+
+**Route A（沙箱路径）**—— 完整流程：
 ```
 analyze_intent → create_sandbox → upload_files → run_agent(DeepAgent) →
   detect_output_files → analyze_output_files → download_files → cleanup_sandbox → END
 ```
 
-**Route B（纯聊天路径）**：
+**Route B（纯聊天路径）** —— `route_after_run_agent()` 跳过文件节点：
 ```
-analyze_intent → run_agent(llm.invoke) → cleanup_sandbox → END
+analyze_intent → run_agent(llm.invoke) ──→ cleanup_sandbox → END
+                                          ↑
+                              route_after_run_agent()
+                              返回 "cleanup_sandbox"
 ```
 
-**Route C（MCP 工具路径）**：
+**Route C（MCP 工具路径）** —— 固定边直连清理：
 ```
 analyze_intent → run_agent_with_mcp(create_deep_agent + MCP tools) → cleanup_sandbox → END
 ```
 
-Route B/C 没有沙箱，不会有文件发现/下载流程。三条路径在 `cleanup_sandbox` 处汇合后到达终点。
+三条路径在 `cleanup_sandbox` 处汇合后到达终点。Route B/C 不会触发文件发现/分析/下载节点，前端也不会收到多余的 `[STATUS]` 事件。
 
 ---
 
@@ -145,7 +160,7 @@ AGENTS.md 中有标准流程，这里用实际案例说明：
 
 | 集成点 | 代码位置 | 说明 |
 |--------|---------|------|
-| Skills 系统 | nodes.py:395-405 | Route A 中并行加载技能 |
-| MCP 工具 | nodes.py:408-420 (Route A), nodes.py:468-481 (Route C) | Route A 有沙箱+MCP，Route C 纯 MCP 工具无沙箱，详见 [mcp-system.md](mcp-system.md) |
+| Skills 系统 | nodes.py:411-425 | Route A 中并行加载技能 |
+| MCP 工具 | nodes.py:427-443 (Route A), nodes.py:477-526 (Route C) | Route A 有沙箱+MCP，Route C 纯 MCP 工具无沙箱，详见 [mcp-system.md](mcp-system.md) |
 | SqliteSaver | api.py:51-52 | 对话持久化，通过 checkpointer 参数注入 |
 | 配置层 | config.py | 全局配置单例，所有模块统一读取 |

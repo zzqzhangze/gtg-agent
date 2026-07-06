@@ -266,7 +266,7 @@ curl -X PUT http://localhost:8000/mcp/tools/{id} \
 
 MCP 工具在 Agent 的两个路径中加载：
 
-### Route A（沙箱路径）— nodes.py:408-420
+### Route A（沙箱路径）— nodes.py:427-443
 
 ```python
 # 在 code_exec / data_analysis / multi_step 路径中：
@@ -278,7 +278,7 @@ MCP 工具在 Agent 的两个路径中加载：
 
 有沙箱 + MCP 工具，适合需要代码执行同时需要外部工具的复杂场景。
 
-### Route C（纯工具路径）— nodes.py:455-504
+### Route C（纯工具路径）— nodes.py:477-526
 
 ```python
 # 在 tool_task 路径中：

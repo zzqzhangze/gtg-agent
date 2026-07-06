@@ -19,7 +19,7 @@ analyze_intent
                                                    └─ create_deep_agent(tools=MCP)  ← ✅ 有 MCP
 ```
 
-`build_tools_for_server()` 只在 `run_agent` 的沙箱分支（`src/agent/nodes.py:389`）中调用。
+`build_tools_for_server()` 只在 `run_agent` 的沙箱分支（`src/agent/nodes.py:427`）中调用。
 如果 `analyze_intent` 把用户请求分类为 `chat` 或 `compute`，走 Route B（裸 `llm.invoke()`），**MCP 工具完全不加载**，LLM 看不到它们。
 
 **后果**：用户连好 MCP 工具后问"现在几点"，因为分类为 `chat`，LLM 回答"我不知道"而不是调 `get_current_time`。
@@ -54,7 +54,7 @@ else:
 
 ### 2. MCP 与 Skills 串行加载
 
-**现状**（`src/agent/nodes.py:394-420`）：
+**现状**（`src/agent/nodes.py:411-443`）：
 
 ```python
 # ── Skills loading ──           # 等 Skills 加载完

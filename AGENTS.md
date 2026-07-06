@@ -65,3 +65,12 @@
 | 改过的文件无新诊断错误 | `lsp_diagnostics` |
 | 测试通过 | `pytest` |
 | 文档同步更新 | 人工复核 |
+
+## 参考文档
+
+| 遇到问题时 | 去看 |
+|-----------|------|
+| MCP 配置/传输模式/工具管理 | `CONTRIBUTING.md`（### MCP 工具管理） |
+| Skills 新增 | `CONTRIBUTING.md`（### 新增技能） |
+| 部署/沙箱/环境变量 | `docs/deployment.md` |
+| 分支/计划执行状态 | `.omo/plans/INDEX.md` |

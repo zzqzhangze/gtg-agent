@@ -1,4 +1,5 @@
 import base64
+import concurrent.futures
 import json
 import os
 from typing import Any
@@ -14,6 +15,41 @@ from src.sandbox.backend import LangSmithBackend
 from src.agent.state import SandboxAgentState
 
 TEMPLATE_FALLBACK = "python-sandbox"
+
+
+def _load_mcp_tools() -> list[BaseTool]:
+    """Load tools from all enabled MCP servers in parallel.
+
+    Uses adapter.py's connection cache to avoid redundant handshakes.
+    Returns flat list of BaseTool instances (empty if none or all failed).
+    """
+    try:
+        from src.mcp.db import get_enabled_servers
+        from src.mcp.adapter import build_tools_for_server
+
+        servers = get_enabled_servers()
+        if not servers:
+            return []
+
+        mcp_additional_tools: list[BaseTool] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(servers)) as executor:
+            future_to_server = {
+                executor.submit(build_tools_for_server, s): s for s in servers
+            }
+            for future in concurrent.futures.as_completed(future_to_server):
+                server = future_to_server[future]
+                try:
+                    tools = future.result()
+                    mcp_additional_tools.extend(tools)
+                    if tools:
+                        names = [t.name for t in tools]
+                        print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
+                except Exception as e:
+                    print(f"[MCP] Failed to load tools from {server['name']}: {e}")
+        return mcp_additional_tools
+    except Exception as e:
+        print(f"[MCP] Failed to load MCP tools: {e}")
+        return []
 
 # ── LLM 意图分析系统提示词 ────────────────────────────────────────────
 _INTENT_SYSTEM_PROMPT = """You are an intelligent task intent analyzer. Classify the user's last message into one of these task types:
@@ -408,39 +444,34 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
         sb = client.get_sandbox(name=state["sandbox_id"])
         backend = LangSmithBackend(sb)  # 给大模型装上"沙箱机械臂"
 
-        # ── Skills loading ──
+        # ── Skills + MCP 并行加载 ──
         sa_skills_root: str | None = None
-        print("[STATUS] load_skills")
-        try:
-            from src.skills.loader import discover_skills, upload_skills_to_sandbox
-
-            skills_list = discover_skills()
-            if skills_list:
-                sa_skills_root = upload_skills_to_sandbox(backend, skills_list)
-                skill_names = [s["name"] for s in skills_list]
-                print(f"[Skills] Loaded {len(skills_list)} skills: {skill_names}")
-                names_str = ", ".join(skill_names)
-                print(f"[STATUS] load_skills_detail|🎯 {len(skills_list)} 个技能: {names_str}")
-        except Exception as e:
-            print(f"[Skills] Failed to load skills: {e}")
-
-        # ── MCP tools loading ──
         mcp_additional_tools: list[BaseTool] = []
-        print("[STATUS] load_mcp")
-        try:
-            from src.mcp.db import get_enabled_servers
-            from src.mcp.adapter import build_tools_for_server
 
-            for server in get_enabled_servers():
-                tools = build_tools_for_server(server)
-                mcp_additional_tools.extend(tools)
-                if tools:
-                    names = [t.name for t in tools]
-                    print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
-                    names_str = ", ".join(names)
-                    print(f"[STATUS] load_mcp_detail|🔧 {len(tools)} 个工具: {names_str}")
-        except Exception as e:
-            print(f"[MCP] Failed to load MCP tools: {e}")
+        def _load_skills() -> str | None:
+            skills_root: str | None = None
+            print("[STATUS] load_skills")
+            try:
+                from src.skills.loader import discover_skills, upload_skills_to_sandbox
+
+                skills_list = discover_skills()
+                if skills_list:
+                    skills_root = upload_skills_to_sandbox(backend, skills_list)
+                    skill_names = [s["name"] for s in skills_list]
+                    print(f"[Skills] Loaded {len(skills_list)} skills: {skill_names}")
+                    names_str = ", ".join(skill_names)
+                    print(f"[STATUS] load_skills_detail|🎯 {len(skills_list)} 个技能: {names_str}")
+            except Exception as e:
+                print(f"[Skills] Failed to load skills: {e}")
+            return skills_root
+
+        print("[STATUS] load_mcp")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            skills_future = pool.submit(_load_skills)
+            mcp_future = pool.submit(_load_mcp_tools)
+
+            sa_skills_root = skills_future.result()
+            mcp_additional_tools = mcp_future.result()
 
         # 组装超级机器人
         print("[STATUS] execute_agent")
@@ -469,7 +500,30 @@ def run_agent(state: SandboxAgentState) -> dict[str, Any]:
     # 路线 B：如果账本上没有沙箱，说明只是简单问候，直接盲答
     else:
         print("[STATUS] agent_no_sandbox")
-        print("[Agent 执行] 检测到无沙箱模式，正在以纯文本直接回复...")
+        print("[Agent 执行] 检测到无沙箱模式，正在直接回复...")
+
+        # ── 同样加载 MCP 工具（P0：chat/compute 路径也需要工具）──
+        mcp_additional_tools = _load_mcp_tools()
+
+        if mcp_additional_tools:
+            import uuid
+
+            agent = create_deep_agent(
+                model=llm,
+                tools=mcp_additional_tools,
+                system_prompt=(
+                    "You are a helpful assistant with access to external tools via MCP.\n"
+                    "Use the available tools to answer the user's question when appropriate."
+                ),
+                checkpointer=MemorySaver(),
+            )
+            thread_id = str(uuid.uuid4())
+            result = agent.invoke(
+                {"messages": state["messages"]},
+                config={"configurable": {"thread_id": thread_id}},
+            )
+            return {"messages": result["messages"], "execution_phase": "agent_no_sandbox"}
+
         response = llm.invoke(state["messages"])
         return {"messages": [response], "execution_phase": "agent_no_sandbox"}
 
@@ -488,20 +542,8 @@ def run_agent_with_mcp(state: SandboxAgentState) -> dict[str, Any]:
         temperature=0.1,
     )
 
-    # ── MCP tools loading ──
-    mcp_additional_tools: list[BaseTool] = []
-    try:
-        from src.mcp.db import get_enabled_servers
-        from src.mcp.adapter import build_tools_for_server
-
-        for server in get_enabled_servers():
-            tools = build_tools_for_server(server)
-            mcp_additional_tools.extend(tools)
-            if tools:
-                names = [t.name for t in tools]
-                print(f"[MCP] Loaded {len(tools)} tools from {server['name']}: {names}")
-    except Exception as e:
-        print(f"[MCP] Failed to load MCP tools: {e}")
+    # ── MCP tools loading（并行连接所有 server）──
+    mcp_additional_tools = _load_mcp_tools()
 
     if mcp_additional_tools:
         import uuid

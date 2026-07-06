@@ -8,6 +8,10 @@ from src.mcp.client import MCPClient
 
 logger = logging.getLogger(__name__)
 
+# 模块级连接缓存：同一进程内对同名 server 复用 MCPClient 实例
+# key: (server_name, server_url) -> MCPClient
+_CLIENT_CACHE: dict[tuple[str, str], MCPClient] = {}
+
 
 def _json_schema_to_pydantic(name: str, schema: dict[str, Any] | None) -> Type[BaseModel]:
     if not schema or "properties" not in schema:
@@ -81,12 +85,29 @@ class MCPTool(BaseTool):
 def build_tools_for_server(server_config: dict[str, Any]) -> list[BaseTool]:
     """Connect to MCP server and wrap all its tools as BaseTool instances.
 
+    Uses a module-level connection cache (_CLIENT_CACHE) keyed by (name, url)
+    so that the same server is not reconnected multiple times during a single
+    agent invocation cycle.
+
     Returns empty list if connection fails (error logged, agent continues).
     """
-    client = MCPClient()
+    cache_key = (server_config["name"], server_config["url"])
+    client = _CLIENT_CACHE.get(cache_key)
+    if client is None:
+        client = MCPClient()
+        try:
+            mode = server_config.get("transport_mode", "auto")
+            client.connect(
+                server_config["url"],
+                server_config.get("timeout", 60),
+                transport_mode=mode,
+            )
+        except Exception as e:
+            logger.warning("Failed to load tools from %s: %s", server_config["name"], e)
+            return []
+        _CLIENT_CACHE[cache_key] = client
+
     try:
-        mode = server_config.get("transport_mode", "auto")
-        client.connect(server_config["url"], server_config.get("timeout", 60), transport_mode=mode)
         tools_defs = client.list_tools()
         tools = []
         for td in tools_defs:
@@ -94,5 +115,15 @@ def build_tools_for_server(server_config: dict[str, Any]) -> list[BaseTool]:
             tools.append(tool)
         return tools
     except Exception as e:
-        logger.warning("Failed to load tools from %s: %s", server_config["name"], e)
+        logger.warning("Failed to list tools from %s: %s", server_config["name"], e)
         return []
+
+
+def clear_client_cache() -> None:
+    """Disconnect and remove all cached MCP clients."""
+    for key, client in list(_CLIENT_CACHE.items()):
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+    _CLIENT_CACHE.clear()

@@ -22,7 +22,7 @@ AI Agent，基于 LangGraph 编排，通过 OpenAI 兼容协议接入 LLM，Dock
                                     ▼      ▼          ▼
                               tool_task  chat/     code_exec/
                              (MCP工具)  compute   data_analysis/
-                                        (直接LLM)  multi_step
+                                        (LLM ± MCP工具)  multi_step
                                     │      │     (需要沙箱)
                                     │      │          │
                                     │      │    create_sandbox

@@ -1,0 +1,19 @@
+.omo/plans/mcp-optimization.md
+  s_a551f8cd75af6d::t_77ce5ac0a0e7e0 3,10-13,22,25,27-29,31-33,39-42,46,48-50,54,56-60,64,66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3b9aea40d0aba54e10a63658d358ea0742797f0c",
+  "prompts": {},
+  "sessions": {
+    "s_a551f8cd75af6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ses_14a403c79ffeDTK1f4zbXgSFws",
+        "model": "unknown"
+      },
+      "human_author": "zzqzhangze <110379926+zzqzhangze@users.noreply.github.com>"
+    }
+  }
+}
